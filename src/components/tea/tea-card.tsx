@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CupSoda, MapPin } from "lucide-react";
+import { CupSoda, Layers, MapPin } from "lucide-react";
 import { Stars } from "@/components/tasting/star-rating";
 import type { Tea } from "@/lib/types";
 import { CategoryBadge, TeaThumb } from "./tea-visual";
@@ -11,10 +11,13 @@ export function TeaCard({
   onOpen,
   onHover,
   drunk,
+  productCount = 0,
 }: {
   tea: Tea;
   /** 마신 횟수와 평균 별점 */
   drunk?: { count: number; avg: number | null };
+  /** 등록된 제품 수 */
+  productCount?: number;
   onOpen: (tea: Tea) => void;
   onHover: (id: string | null) => void;
 }) {
@@ -42,6 +45,11 @@ export function TeaCard({
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <CategoryBadge category={tea.category} />
+            {productCount > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                <Layers className="size-3" /> 제품 {productCount}
+              </span>
+            )}
             {drunk && drunk.count > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-seal/10 px-2 py-0.5 text-[11px] font-medium text-seal">
                 <CupSoda className="size-3" /> {drunk.count}번

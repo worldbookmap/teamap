@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { storeError } from "@/lib/api-errors";
 import { isAdmin, unauthorized } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { parseTeaInput } from "@/lib/validate";
@@ -17,8 +18,12 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/teas/[id]"
   const { id } = await ctx.params;
   const parsed = parseTeaInput(await request.json().catch(() => null), true);
   if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
-  const tea = await getStore().update(id, parsed.value);
-  return tea ? Response.json(tea) : notFound();
+  try {
+    const tea = await getStore().update(id, parsed.value);
+    return tea ? Response.json(tea) : notFound();
+  } catch (e) {
+    return storeError(e);
+  }
 }
 
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/teas/[id]">) {

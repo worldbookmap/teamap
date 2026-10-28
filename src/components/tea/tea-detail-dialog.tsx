@@ -1,7 +1,8 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, MapPin, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Factory, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
+import { Stars } from "@/components/tasting/star-rating";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { TastingList } from "@/components/tasting/tasting-list";
@@ -11,9 +12,20 @@ import { CATEGORY_META } from "@/lib/categories";
 import type { RegionIndex } from "@/lib/regions";
 import type { Tasting, Tea, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { CategoryBadge, TeaSeal } from "./tea-visual";
+import { CategoryBadge, TeaSeal, TeaThumb } from "./tea-visual";
 
-export type DetailTab = "info" | "tastings";
+export type DetailTab = "info" | "products" | "tastings";
+
+/** 제품(하위 차) 탭에 필요한 것들 */
+export interface ProductPanel {
+  /** 지금 보는 것이 제품이면 그 상위 차 */
+  parent: Tea | null;
+  /** 지금 보는 차의 제품 목록 */
+  products: Tea[];
+  stats: Map<string, { count: number; avg: number | null }>;
+  onOpen: (teaId: string) => void;
+  onAdd: () => void;
+}
 
 /** 상세 창의 「마신 기록」 탭에 필요한 것들 */
 export interface TastingPanel {
@@ -24,6 +36,8 @@ export interface TastingPanel {
   onAdd: () => void;
   onEdit: (t: Tasting) => void;
   onDelete: (t: Tasting) => void;
+  /** 제품의 기록이 섞여 있을 때 그 제품 이름 */
+  labelOf?: (t: Tasting) => string | null;
 }
 
 export function TeaDetailDialog({
@@ -35,6 +49,7 @@ export function TeaDetailDialog({
   onDelete,
   onShowOrigin,
   tasting,
+  product,
 }: {
   tea: Tea | null;
   onOpenChange: (open: boolean) => void;
@@ -44,6 +59,7 @@ export function TeaDetailDialog({
   onDelete: (tea: Tea) => void;
   onShowOrigin: (origin: TeaOrigin) => void;
   tasting: TastingPanel;
+  product: ProductPanel;
 }) {
   return (
     <Dialog open={!!tea} onOpenChange={onOpenChange}>
@@ -58,6 +74,7 @@ export function TeaDetailDialog({
             onDelete={onDelete}
             onShowOrigin={onShowOrigin}
             tasting={tasting}
+            product={product}
           />
         )}
       </DialogContent>
@@ -73,6 +90,7 @@ function TeaDetail({
   onDelete,
   onShowOrigin,
   tasting,
+  product,
 }: {
   tea: Tea;
   regions: RegionIndex | null;
@@ -81,6 +99,7 @@ function TeaDetail({
   onDelete: (tea: Tea) => void;
   onShowOrigin: (origin: TeaOrigin) => void;
   tasting: TastingPanel;
+  product: ProductPanel;
 }) {
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState(1);
@@ -154,21 +173,45 @@ function TeaDetail({
 
       <div className="space-y-5 p-6">
         <div className="space-y-2">
-          <CategoryBadge category={tea.category} />
+          {product.parent && (
+            <button
+              onClick={() => product.onOpen(product.parent!.id)}
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary"
+            >
+              <ChevronLeft className="size-4" />
+              <span className="font-zh">{product.parent.name_zh}</span> {product.parent.name_ko}
+            </button>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <CategoryBadge category={tea.category} />
+            {tea.maker && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px]">
+                <Factory className="size-3" />
+                <span className="font-zh">{tea.maker}</span>
+              </span>
+            )}
+          </div>
           <DialogTitle className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="font-zh text-3xl font-bold tracking-wide" style={{ color: meta.color }}>
+            <span className="font-zh text-3xl font-bold tracking-wide dark:brightness-[1.9] dark:saturate-[0.9]" style={{ color: meta.color }}>
               {tea.name_zh}
             </span>
             {tea.name_zh_trad && tea.name_zh_trad !== tea.name_zh && (
               <span className="font-zh text-xl text-muted-foreground">{tea.name_zh_trad}</span>
             )}
           </DialogTitle>
-          <DialogDescription className="font-heading text-lg text-foreground">{tea.name_ko}</DialogDescription>
+          <DialogDescription className="font-heading text-lg text-foreground">
+            {tea.name_ko !== tea.name_zh ? tea.name_ko : null}
+          </DialogDescription>
         </div>
 
         <Tabs value={tasting.tab} onValueChange={(v) => tasting.onTabChange(v as DetailTab)}>
           <TabsList className="w-full">
             <TabsTrigger value="info">차 정보</TabsTrigger>
+            {!product.parent && (
+              <TabsTrigger value="products">
+                제품{product.products.length > 0 && <span className="text-primary">{product.products.length}</span>}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="tastings">
               마신 기록{tasting.tastings.length > 0 && <span className="text-primary">{tasting.tastings.length}</span>}
             </TabsTrigger>
@@ -182,8 +225,53 @@ function TeaDetail({
               onAdd={tasting.onAdd}
               onEdit={tasting.onEdit}
               onDelete={tasting.onDelete}
+              labelOf={tasting.labelOf}
             />
           </TabsContent>
+
+          {!product.parent && (
+            <TabsContent value="products" className="space-y-3 pt-3">
+              <div className="flex items-center gap-2 rounded-lg bg-muted/60 px-4 py-3 text-sm">
+                <span className="text-muted-foreground">
+                  {product.products.length
+                    ? `${product.products.length}개 제품`
+                    : "차창·브랜드별 제품(예: 7542, 7572)을 따로 등록할 수 있어요."}
+                </span>
+                {admin && (
+                  <Button size="sm" className="ml-auto" onClick={product.onAdd}>
+                    <Plus /> 제품 추가
+                  </Button>
+                )}
+              </div>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {product.products.map((p) => {
+                  const st = product.stats.get(p.id);
+                  return (
+                    <li key={p.id}>
+                      <button
+                        onClick={() => product.onOpen(p.id)}
+                        className="flex w-full gap-3 rounded-xl border bg-card p-2.5 text-left transition hover:border-primary/40 hover:shadow-sm"
+                      >
+                        <TeaThumb tea={p} className="size-14 shrink-0 rounded-lg text-[10px]" />
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="font-zh truncate font-semibold">{p.name_zh || p.name_ko}</div>
+                          {p.name_ko && p.name_ko !== p.name_zh && (
+                            <div className="truncate text-xs text-muted-foreground">{p.name_ko}</div>
+                          )}
+                          {p.maker && <div className="font-zh truncate text-xs text-muted-foreground">{p.maker}</div>}
+                          {st && st.count > 0 && (
+                            <div className="flex items-center gap-1 text-[11px] text-seal">
+                              {st.count}번 마심 <Stars value={st.avg == null ? null : Math.round(st.avg * 2) / 2} size="size-2.5" />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </TabsContent>
+          )}
 
           <TabsContent value="info" className="space-y-5 pt-3">
             {tea.origins.length > 0 && (

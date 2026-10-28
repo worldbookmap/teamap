@@ -22,6 +22,8 @@ interface Props {
   teas: Tea[];
   conv: HanjaConverter | null;
   highlightTeaId?: string | null;
+  /** 바뀌면 확대·이동을 처음 상태로 */
+  resetKey?: number;
   onRegionClick: (adcode: string, hasChildren: boolean) => void;
 }
 
@@ -58,7 +60,7 @@ function useSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
-export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, onRegionClick }: Props) {
+export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, resetKey, onRegionClick }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -145,6 +147,12 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, onRe
       sel.on(".zoom", null);
     };
   }, [svgEl, viewCode]);
+
+  useEffect(() => {
+    if (resetKey && svgEl && zoomRef.current) {
+      select(svgEl).transition().duration(400).call(zoomRef.current.transform, zoomIdentity);
+    }
+  }, [resetKey, svgEl]);
 
   const zoomBy = useCallback(
     (k: number) => {

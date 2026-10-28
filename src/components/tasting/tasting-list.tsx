@@ -32,6 +32,7 @@ export function TastingList({
   onAdd,
   onEdit,
   onDelete,
+  labelOf,
 }: {
   tastings: Tasting[];
   admin: boolean;
@@ -39,6 +40,7 @@ export function TastingList({
   onAdd: () => void;
   onEdit: (t: Tasting) => void;
   onDelete: (t: Tasting) => void;
+  labelOf?: (t: Tasting) => string | null;
 }) {
   const [viewer, setViewer] = useState<string | null>(null);
   const { count, avg, last } = tastingSummary(tastings);
@@ -84,7 +86,7 @@ export function TastingList({
               exit={{ opacity: 0, scale: 0.97 }}
               className="space-y-3 rounded-xl border bg-card p-4"
             >
-              <TastingEntry t={t} admin={admin} onEdit={onEdit} onDelete={onDelete} onPhoto={setViewer} />
+              <TastingEntry t={t} label={labelOf?.(t) ?? null} admin={admin} onEdit={onEdit} onDelete={onDelete} onPhoto={setViewer} />
             </motion.li>
           ))}
         </AnimatePresence>
@@ -119,12 +121,14 @@ export function TastingList({
 
 function TastingEntry({
   t,
+  label,
   admin,
   onEdit,
   onDelete,
   onPhoto,
 }: {
   t: Tasting;
+  label: string | null;
   admin: boolean;
   onEdit: (t: Tasting) => void;
   onDelete: (t: Tasting) => void;
@@ -143,6 +147,7 @@ function TastingEntry({
       <div className="flex items-center gap-3">
         <span className="font-heading font-semibold">{formatDate(t.tasted_on)}</span>
         <Stars value={t.rating} />
+        {label && <span className="font-zh rounded-full bg-secondary px-2 py-0.5 text-[11px] text-secondary-foreground">{label}</span>}
         {admin && (
           <div className="ml-auto flex gap-1">
             {confirming ? (

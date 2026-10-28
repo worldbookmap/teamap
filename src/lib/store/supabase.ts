@@ -7,6 +7,7 @@ export const IMAGE_BUCKET = "tea-images";
 const TABLE = "teas";
 const TASTINGS = "tastings";
 const TASTINGS_MIGRATION = "supabase/migrations/20261028010000_tastings.sql";
+const PRODUCTS_MIGRATION = "supabase/migrations/20261028020000_tea_products.sql";
 
 let client: SupabaseClient | null = null;
 
@@ -20,7 +21,11 @@ function db() {
 
 function check<T>({ data, error }: { data: T; error: { message: string; code?: string } | null }): T {
   if (error?.code === "PGRST205" && error.message.includes(TASTINGS)) {
-    throw new MissingTableError(TASTINGS, TASTINGS_MIGRATION);
+    throw new MissingTableError(`${TASTINGS} 테이블`, TASTINGS_MIGRATION);
+  }
+  // PGRST204: 컬럼 없음 (제품 기능 마이그레이션 전)
+  if (error?.code === "PGRST204" && /parent_id|maker/.test(error.message)) {
+    throw new MissingTableError("제품용 컬럼(parent_id, maker)", PRODUCTS_MIGRATION);
   }
   if (error) throw new Error(error.message);
   return data;
@@ -29,30 +34,42 @@ function check<T>({ data, error }: { data: T; error: { message: string; code?: s
 /** numeric 컬럼은 문자열로 올 수 있어 숫자로 맞춥니다 */
 const normTasting = (t: Tasting): Tasting => ({ ...t, rating: t.rating == null ? null : Number(t.rating) });
 
+/** 마이그레이션 전 행에는 parent_id·maker 가 없을 수 있습니다 */
+const normTea = (t: Tea): Tea => ({ ...t, parent_id: t.parent_id ?? null, maker: t.maker ?? "" });
+
+/** 제품 기능 마이그레이션 전이면 기본값과 같은 필드는 빼고 보냅니다 (기존 기능은 계속 작동) */
+function withoutDefaultProductFields<T extends Partial<TeaInput>>(input: T): T {
+  const out = { ...input };
+  if (out.parent_id == null) delete out.parent_id;
+  if (!out.maker) delete out.maker;
+  return out;
+}
+
 export const supabaseStore: TeaStore = {
   kind: "supabase",
 
   async list() {
-    return check(await db().from(TABLE).select("*").order("created_at")) as Tea[];
+    return (check(await db().from(TABLE).select("*").order("created_at")) as Tea[]).map(normTea);
   },
 
   async get(id) {
-    return check(await db().from(TABLE).select("*").eq("id", id).maybeSingle()) as Tea | null;
+    const tea = check(await db().from(TABLE).select("*").eq("id", id).maybeSingle()) as Tea | null;
+    return tea && normTea(tea);
   },
 
   async create(input: TeaInput) {
-    return check(await db().from(TABLE).insert(input).select().single()) as Tea;
+    return normTea(check(await db().from(TABLE).insert(withoutDefaultProductFields(input)).select().single()) as Tea);
   },
 
   async update(id, input) {
     const rows = check(
       await db()
         .from(TABLE)
-        .update({ ...input, updated_at: new Date().toISOString() })
+        .update({ ...withoutDefaultProductFields(input), updated_at: new Date().toISOString() })
         .eq("id", id)
         .select(),
     ) as Tea[];
-    return rows[0] ?? null;
+    return rows[0] ? normTea(rows[0]) : null;
   },
 
   async remove(id) {

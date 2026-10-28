@@ -17,9 +17,9 @@ export interface TeaStore {
   removeTasting(id: string): Promise<boolean>;
 }
 
-/** Supabase 에 tastings 테이블이 아직 없을 때 */
+/** Supabase 에 아직 실행하지 않은 마이그레이션이 있을 때 (테이블·컬럼 없음) */
 export class MissingTableError extends Error {
-  constructor(table: string, migration: string) {
-    super(`Supabase 에 ${table} 테이블이 없습니다. SQL Editor 에서 ${migration} 을 실행해 주세요.`);
+  constructor(what: string, migration: string) {
+    super(`Supabase 에 ${what} 이(가) 없습니다. SQL Editor 에서 ${migration} 을 실행해 주세요.`);
   }
 }

@@ -21,6 +21,10 @@ export interface Tea {
   description: string;
   images: string[];
   origins: TeaOrigin[];
+  /** 상위 차 (예: 7542 → 普洱茶). 없으면 대표 차 */
+  parent_id: string | null;
+  /** 제조사·차창 (예: 勐海茶厂) */
+  maker: string;
   created_at: string;
   updated_at: string;
 }

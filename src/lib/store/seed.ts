@@ -13,6 +13,8 @@ export async function buildSeedTeas(): Promise<TeaInput[]> {
     category: t.category,
     description: t.description,
     images: [],
+    parent_id: null,
+    maker: "",
     origins: t.origins.map((code) => makeOrigin(regions, conv, code)).filter((o): o is TeaOrigin => !!o),
   }));
 }

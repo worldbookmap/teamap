@@ -20,7 +20,8 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
 
 async function readAll(): Promise<Tea[]> {
   try {
-    return JSON.parse(await fs.readFile(DB_FILE, "utf8"));
+    const teas: Tea[] = JSON.parse(await fs.readFile(DB_FILE, "utf8"));
+    return teas.map((t) => ({ ...t, parent_id: t.parent_id ?? null, maker: t.maker ?? "" }));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     const now = new Date().toISOString();
@@ -88,11 +89,13 @@ export const localStore: TeaStore = {
   remove: (id) =>
     serial(async () => {
       const teas = await readAll();
-      const next = teas.filter((t) => t.id !== id);
+      // 하위 제품도 함께 지웁니다
+      const gone = new Set([id, ...teas.filter((t) => t.parent_id === id).map((t) => t.id)]);
+      const next = teas.filter((t) => !gone.has(t.id));
       if (next.length === teas.length) return false;
       await writeAll(next);
       const tastings = await readTastings();
-      const kept = tastings.filter((t) => t.tea_id !== id);
+      const kept = tastings.filter((t) => !gone.has(t.tea_id));
       if (kept.length !== tastings.length) await writeJson(TASTING_FILE, kept);
       return true;
     }),

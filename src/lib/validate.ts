@@ -18,9 +18,11 @@ export function parseTeaInput(body: unknown, partial = false): { ok: true; value
   const b = body as Record<string, unknown>;
   const out: Partial<TeaInput> = {};
 
-  for (const key of ["name_zh", "name_zh_trad", "name_ko", "description"] as const) {
+  for (const key of ["name_zh", "name_zh_trad", "name_ko", "description", "maker"] as const) {
     if (key in b) out[key] = str(b[key], key === "description" ? 20000 : 200);
   }
+  // 상위 차는 처음 만들 때만 정합니다 (수정으로 옮기지 않음)
+  if (!partial && "parent_id" in b) out.parent_id = str(b.parent_id, 64) || null;
   if ("category" in b) {
     if (!TEA_CATEGORIES.includes(b.category as TeaCategory)) return { ok: false, error: "다류를 선택해 주세요." };
     out.category = b.category as TeaCategory;
@@ -43,6 +45,8 @@ export function parseTeaInput(body: unknown, partial = false): { ok: true; value
     out.description ??= "";
     out.images ??= [];
     out.origins ??= [];
+    out.parent_id ??= null;
+    out.maker ??= "";
   }
   return { ok: true, value: out };
 }

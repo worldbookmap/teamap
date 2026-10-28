@@ -79,7 +79,12 @@ export function TastingTimelineSheet({
                         )}
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <div className="flex items-baseline gap-2">
-                            <span className="font-zh truncate font-semibold">{tea.name_zh || tea.name_ko}</span>
+                            <span className="font-zh truncate font-semibold">
+                              {tea.parent_id && teaById.get(tea.parent_id) && (
+                                <span className="font-normal text-muted-foreground">{teaById.get(tea.parent_id)!.name_zh} · </span>
+                              )}
+                              {tea.name_zh || tea.name_ko}
+                            </span>
                             <span className="truncate text-xs text-muted-foreground">{tea.name_ko}</span>
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">

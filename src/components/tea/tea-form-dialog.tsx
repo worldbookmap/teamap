@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
@@ -17,20 +18,24 @@ import { ImageField } from "./image-field";
 import { NameFields } from "./name-fields";
 import { OriginPicker } from "./origin-picker";
 
-const empty = (origins: TeaOrigin[] = []): TeaInput => ({
+/** 새 차. 제품(parent 있음)이면 상위 차의 다류·산지를 기본값으로 */
+const empty = (origins: TeaOrigin[] = [], parent?: Tea | null): TeaInput => ({
   name_zh: "",
   name_zh_trad: "",
   name_ko: "",
-  category: "green",
+  category: parent?.category ?? "green",
   description: "",
   images: [],
-  origins,
+  origins: parent ? parent.origins : origins,
+  parent_id: parent?.id ?? null,
+  maker: "",
 });
 
 export function TeaFormDialog({
   open,
   onOpenChange,
   tea,
+  parent,
   initialOrigins,
   conv,
   regions,
@@ -40,6 +45,8 @@ export function TeaFormDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tea?: Tea | null;
+  /** 제품을 등록·수정할 때의 상위 차 */
+  parent?: Tea | null;
   initialOrigins?: TeaOrigin[];
   conv: HanjaConverter | null;
   regions: RegionIndex | null;
@@ -51,8 +58,9 @@ export function TeaFormDialog({
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-2xl">
         {open && (
           <TeaForm
-            key={tea?.id ?? "new"}
+            key={tea?.id ?? `new-${parent?.id ?? ""}`}
             tea={tea}
+            parent={parent}
             initialOrigins={initialOrigins}
             conv={conv}
             regions={regions}
@@ -71,6 +79,7 @@ export function TeaFormDialog({
 
 function TeaForm({
   tea,
+  parent,
   initialOrigins,
   conv,
   regions,
@@ -79,6 +88,7 @@ function TeaForm({
   onSaved,
 }: {
   tea?: Tea | null;
+  parent?: Tea | null;
   initialOrigins?: TeaOrigin[];
   conv: HanjaConverter | null;
   regions: RegionIndex | null;
@@ -86,7 +96,8 @@ function TeaForm({
   onCancel: () => void;
   onSaved: (tea: Tea) => void;
 }) {
-  const [form, setForm] = useState<TeaInput>(() => (tea ? { ...tea } : empty(initialOrigins)));
+  const [form, setForm] = useState<TeaInput>(() => (tea ? { ...tea } : empty(initialOrigins, parent)));
+  const isProduct = !!(parent || tea?.parent_id);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof TeaInput>(k: K, v: TeaInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -108,8 +119,17 @@ function TeaForm({
   return (
     <form onSubmit={submit} className="space-y-5">
       <DialogHeader>
-        <DialogTitle className="font-heading text-xl">{tea ? "차 정보 수정" : "새 차 등록"}</DialogTitle>
-        <DialogDescription>한자로 이름을 쓰면 번체와 한글 독음이 자동으로 채워집니다.</DialogDescription>
+        <DialogTitle className="font-heading text-xl">
+          {isProduct ? (tea ? "제품 정보 수정" : "제품 등록") : tea ? "차 정보 수정" : "새 차 등록"}
+        </DialogTitle>
+        <DialogDescription>
+          {parent && (
+            <span className="mb-1 block text-foreground">
+              <span className="font-zh">{parent.name_zh}</span> {parent.name_ko} 의 제품 — 예: 大益 7542, 下关 沱茶
+            </span>
+          )}
+          한자로 이름을 쓰면 번체와 한글 독음이 자동으로 채워집니다.
+        </DialogDescription>
       </DialogHeader>
 
       <NameFields
@@ -117,6 +137,30 @@ function TeaForm({
         conv={conv}
         onChange={(n) => setForm((f) => ({ ...f, ...n }))}
       />
+
+      {isProduct && (
+        <div className="space-y-1.5">
+          <Label htmlFor="maker" className="flex justify-between">
+            제조사·차창
+            {conv && /\p{Script=Han}/u.test(form.maker) && !/\(/.test(form.maker) && (
+              <button
+                type="button"
+                className="text-xs text-primary hover:underline"
+                onClick={() => set("maker", annotateHanja(form.maker, conv))}
+              >
+                한글 독음 달기
+              </button>
+            )}
+          </Label>
+          <Input
+            id="maker"
+            className="font-zh"
+            placeholder="勐海茶厂, 下关茶厂, 大益…"
+            value={form.maker}
+            onChange={(e) => set("maker", e.target.value)}
+          />
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label>6대 다류</Label>

@@ -42,7 +42,10 @@ export function TeaMapApp() {
   const [hoverTeaId, setHoverTeaId] = useState<string | null>(null);
 
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [form, setForm] = useState<{ open: boolean; tea?: Tea | null; origins?: TeaOrigin[] }>({ open: false });
+  const [form, setForm] = useState<{ open: boolean; tea?: Tea | null; parent?: Tea | null; origins?: TeaOrigin[] }>({
+    open: false,
+  });
+  const [mapResetKey, setMapResetKey] = useState(0);
   const [loginOpen, setLoginOpen] = useState(false);
 
   // 마신 기록
@@ -73,9 +76,49 @@ export function TeaMapApp() {
     for (const t of tastings) m.set(t.tea_id, [...(m.get(t.tea_id) ?? []), t]);
     return m;
   }, [tastings]);
+
+  // 제품(하위 차)은 지도·목록에서 상위 차에 묶어서 보여줍니다
+  const productsOf = useMemo(() => {
+    const m = new Map<string, Tea[]>();
+    for (const t of teas) if (t.parent_id) m.set(t.parent_id, [...(m.get(t.parent_id) ?? []), t]);
+    return m;
+  }, [teas]);
+  /** 차 + 그 제품들의 마신 기록 (최근 날짜 순) */
+  const familyTastings = useCallback(
+    (id: string) =>
+      [id, ...(productsOf.get(id) ?? []).map((p) => p.id)]
+        .flatMap((x) => byTea.get(x) ?? [])
+        .sort((a, b) => b.tasted_on.localeCompare(a.tasted_on) || b.created_at.localeCompare(a.created_at)),
+    [byTea, productsOf],
+  );
   const summaries = useMemo(
-    () => new Map([...byTea.entries()].map(([id, list]) => [id, tastingSummary(list)])),
-    [byTea],
+    () => new Map(teas.map((t) => [t.id, tastingSummary(t.parent_id ? (byTea.get(t.id) ?? []) : familyTastings(t.id))])),
+    [teas, byTea, familyTastings],
+  );
+  /** 목록·지도용 대표 차: 제품의 산지까지 합친 산지 목록 */
+  const topTeas = useMemo(
+    () =>
+      teas
+        .filter((t) => !t.parent_id)
+        .map((t) => {
+          const extra = (productsOf.get(t.id) ?? []).flatMap((p) => p.origins);
+          const origins = [...t.origins, ...extra].filter((o, i, all) => all.findIndex((x) => x.adcode === o.adcode) === i);
+          return { ...t, origins };
+        }),
+    [teas, productsOf],
+  );
+  /** 검색은 제품 이름·제조사로도 */
+  const matchesFamily = useCallback(
+    (t: Tea) => {
+      const simplify = conv?.simplify.bind(conv);
+      return (
+        matchesQuery(t, query, simplify) ||
+        (productsOf.get(t.id) ?? []).some(
+          (p) => matchesQuery(p, query, simplify) || (!!query.trim() && p.maker.includes(query.trim())),
+        )
+      );
+    },
+    [conv, query, productsOf],
   );
 
   // 등록된 차 이름도 한글→한자 사전에 넣어 둡니다
@@ -87,19 +130,19 @@ export function TeaMapApp() {
 
   const filtered = useMemo(
     () =>
-      teas.filter(
+      topTeas.filter(
         (t) =>
           (cats.size === 0 || cats.has(t.category)) &&
-          (!drunkOnly || byTea.has(t.id)) &&
-          matchesQuery(t, query, conv?.simplify.bind(conv)),
+          (!drunkOnly || (summaries.get(t.id)?.count ?? 0) > 0) &&
+          matchesFamily(t),
       ),
-    [teas, cats, query, conv, drunkOnly, byTea],
+    [topTeas, cats, drunkOnly, summaries, matchesFamily],
   );
   const regionCode = focusCode ?? viewCode;
   const inRegion = useMemo(() => teasInRegion(filtered, regionCode), [filtered, regionCode]);
   const counts = useMemo(
-    () => categoryCounts(teasInRegion(teas.filter((t) => matchesQuery(t, query, conv?.simplify.bind(conv))), regionCode)),
-    [teas, query, regionCode, conv],
+    () => categoryCounts(teasInRegion(topTeas.filter(matchesFamily), regionCode)),
+    [topTeas, matchesFamily, regionCode],
   );
 
   /** 지역으로 이동: 하위 지도가 있으면 그 지도로, 말단이면 상위 지도에서 선택 */
@@ -136,6 +179,21 @@ export function TeaMapApp() {
   const regionName = (code: string) => (code === CHINA ? "中国" : (regions?.[code]?.n ?? ""));
   const curName = regionName(regionCode);
   const detail = teas.find((t) => t.id === detailId) ?? null;
+  const detailParent = detail?.parent_id ? (teas.find((t) => t.id === detail.parent_id) ?? null) : null;
+  const teaName = (id: string) => {
+    const t = teas.find((x) => x.id === id);
+    return t ? t.name_zh || t.name_ko : "";
+  };
+
+  /** 처음 화면으로: 지도·검색·필터 초기화 */
+  const goHome = () => {
+    setViewCode(CHINA);
+    setFocusCode(null);
+    setQuery("");
+    setCats(new Set());
+    setDrunkOnly(false);
+    setMapResetKey((k) => k + 1);
+  };
   const admin = !!me?.admin;
 
   const openNewTea = () => {
@@ -150,9 +208,11 @@ export function TeaMapApp() {
   const onDelete = async (tea: Tea) => {
     try {
       await api.deleteTea(tea.id);
-      setTeas((list) => list.filter((t) => t.id !== tea.id));
-      setTastings((list) => list.filter((t) => t.tea_id !== tea.id));
-      setDetailId(null);
+      // 제품도 함께 삭제됩니다
+      const gone = new Set([tea.id, ...(productsOf.get(tea.id) ?? []).map((p) => p.id)]);
+      setTeas((list) => list.filter((t) => !gone.has(t.id)));
+      setTastings((list) => list.filter((t) => !gone.has(t.tea_id)));
+      setDetailId(tea.parent_id);
       toast.success("삭제했습니다.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -172,6 +232,7 @@ export function TeaMapApp() {
         onAdd={openNewTea}
         drunkCount={tastings.length}
         onTimeline={() => setTimelineOpen(true)}
+        onHome={goHome}
       />
 
       <main className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -184,6 +245,7 @@ export function TeaMapApp() {
             conv={conv}
             highlightTeaId={hoverTeaId}
             onRegionClick={onRegionClick}
+            resetKey={mapResetKey}
           />
 
           <nav className="absolute top-3 right-3 left-3 flex items-center gap-1 lg:right-auto">
@@ -257,7 +319,9 @@ export function TeaMapApp() {
               >
                 <CupSoda className="size-3" />
                 마신 차
-                <span className="opacity-60">{teasInRegion(teas, regionCode).filter((t) => byTea.has(t.id)).length}</span>
+                <span className="opacity-60">
+                  {teasInRegion(topTeas, regionCode).filter((t) => (summaries.get(t.id)?.count ?? 0) > 0).length}
+                </span>
               </FilterChip>
               <FilterChip active={cats.size === 0} onClick={() => setCats(new Set())}>
                 전체
@@ -299,6 +363,7 @@ export function TeaMapApp() {
                       key={t.id}
                       tea={t}
                       drunk={summaries.get(t.id)}
+                      productCount={productsOf.get(t.id)?.length ?? 0}
                       onOpen={(x) => {
                         setDetailTab("info");
                         setDetailId(x.id);
@@ -330,13 +395,21 @@ export function TeaMapApp() {
         onOpenChange={(o) => !o && setDetailId(null)}
         regions={regions}
         admin={admin}
-        onEdit={(t) => {
-          setDetailId(null);
-          setForm({ open: true, tea: t });
-        }}
+        onEdit={(t) => setForm({ open: true, tea: t, parent: detailParent })}
         onDelete={onDelete}
+        product={{
+          parent: detailParent,
+          products: detail && !detail.parent_id ? (productsOf.get(detail.id) ?? []) : [],
+          stats: summaries,
+          onOpen: (id) => {
+            setDetailTab("info");
+            setDetailId(id);
+          },
+          onAdd: () => setForm({ open: true, tea: null, parent: detail }),
+        }}
         tasting={{
-          tastings: detail ? (byTea.get(detail.id) ?? []) : [],
+          tastings: detail ? (detail.parent_id ? (byTea.get(detail.id) ?? []) : familyTastings(detail.id)) : [],
+          labelOf: (t) => (detail && t.tea_id !== detail.id ? teaName(t.tea_id) : null),
           error: tastingError,
           tab: detailTab,
           onTabChange: setDetailTab,
@@ -361,6 +434,7 @@ export function TeaMapApp() {
         open={form.open}
         onOpenChange={(open) => setForm((f) => ({ ...f, open }))}
         tea={form.tea}
+        parent={form.parent}
         initialOrigins={form.origins}
         conv={conv}
         regions={regions}
@@ -405,6 +479,7 @@ function Header({
   onAdd,
   drunkCount,
   onTimeline,
+  onHome,
 }: {
   admin: boolean;
   me: Me | null;
@@ -413,24 +488,32 @@ function Header({
   onAdd: () => void;
   drunkCount: number;
   onTimeline: () => void;
+  onHome: () => void;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   return (
     <header className="flex items-center gap-3 border-b bg-card/70 px-4 py-2.5 backdrop-blur">
-      <motion.img
-        src="/teaggle.jpg"
-        alt="Teaggle Club"
-        width={40}
-        height={40}
-        initial={{ rotate: -12, scale: 0.8, opacity: 0 }}
-        animate={{ rotate: 0, scale: 1, opacity: 1 }}
-        transition={{ type: "spring", stiffness: 260, damping: 18 }}
-        className="size-10 shrink-0 rounded-full bg-white object-cover shadow-sm ring-1 ring-border"
-      />
-      <div className="leading-tight">
-        <h1 className="font-heading text-lg font-bold">중국 차 지도</h1>
-        <p className="font-zh text-xs tracking-[0.3em] text-muted-foreground">中國茶地圖</p>
-      </div>
+      <button
+        type="button"
+        onClick={onHome}
+        aria-label="처음 지도로"
+        className="flex items-center gap-3 rounded-lg text-left outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <motion.img
+          src="/teaggle.jpg"
+          alt="Teaggle Club"
+          width={40}
+          height={40}
+          initial={{ rotate: -12, scale: 0.8, opacity: 0 }}
+          animate={{ rotate: 0, scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 18 }}
+          className="size-10 shrink-0 rounded-full bg-white object-cover shadow-sm ring-1 ring-border"
+        />
+        <div className="leading-tight">
+          <h1 className="font-heading text-lg font-bold">중국 차 지도</h1>
+          <p className="font-zh text-xs tracking-[0.3em] text-muted-foreground">中國茶地圖</p>
+        </div>
+      </button>
 
       <div className="ml-auto flex items-center gap-1.5">
         {me?.store === "local" && (
