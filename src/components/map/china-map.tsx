@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_META } from "@/lib/categories";
 import { loadRegionShapes, type RegionFeature } from "@/lib/geo";
-import { loadTowns, townPos } from "@/lib/towns";
+import { loadTowns, townPos, type TownFocus } from "@/lib/towns";
 import type { HanjaConverter } from "@/lib/hanja";
 import { CHINA } from "@/lib/regions";
 import { dominantCategory, teasInRegion } from "@/lib/tea-utils";
@@ -27,7 +27,9 @@ interface Props {
   resetKey?: number;
   onRegionClick: (adcode: string, hasChildren: boolean) => void;
   /** 지역 검색에서 고른 향·진 (위치가 있으면 표시) */
-  focusTown?: { zh: string; ko: string; lng: number; lat: number } | null;
+  focusTown?: TownFocus | null;
+  /** 향·진 점을 눌렀을 때 */
+  onTownClick?: (town: TownFocus) => void;
   /** 더 나눌 수 없는 구역(현·구)을 길게 눌렀을 때 그 위치 (없으면 길게 누르기 꺼짐) */
   onLongPress?: (adcode: string, lngLat: [number, number]) => void;
 }
@@ -75,6 +77,7 @@ export function ChinaMap({
   highlightTeaId,
   resetKey,
   focusTown,
+  onTownClick,
   onRegionClick,
   onLongPress,
 }: Props) {
@@ -161,7 +164,7 @@ export function ChinaMap({
   const countyView = features[0]?.properties.level === "district";
 
   // 현·구가 보이는 지도에서는 향·진 위치를 점으로 (OpenStreetMap 기준, 일부만 위치가 있음)
-  const [towns, setTowns] = useState<{ view: string; list: { code: string; county: string; zh: string; x: number; y: number }[] }>({
+  const [towns, setTowns] = useState<{ view: string; list: (TownFocus & { x: number; y: number })[] }>({
     view: "",
     list: [],
   });
@@ -175,7 +178,7 @@ export function ChinaMap({
         const list = all.flat().flatMap(({ t, county }) => {
           const pos = townPos(t);
           const pt = pos && projection([pos.lng, pos.lat]);
-          return pt ? [{ code: t[0], county, zh: t[1], x: pt[0], y: pt[1] }] : [];
+          return pt ? [{ code: t[0], county, zh: t[1], ko: conv?.toHangul(t[1]) ?? "", ...pos, x: pt[0], y: pt[1] }] : [];
         });
         setTowns({ view: viewCode, list });
       })
@@ -183,9 +186,10 @@ export function ChinaMap({
     return () => {
       alive = false;
     };
-  }, [features, projection, viewCode]);
+  }, [features, projection, viewCode, conv]);
   const townDots = towns.view === viewCode ? towns.list : [];
-  const focusTownPt = focusTown && projection ? projection([focusTown.lng, focusTown.lat]) : null;
+  const focusTownPt =
+    focusTown && focusTown.lng != null && focusTown.lat != null && projection ? projection([focusTown.lng, focusTown.lat]) : null;
 
   const shapesData = useMemo(() => {
     if (!path || !projection) return [];
@@ -419,17 +423,35 @@ export function ChinaMap({
               {/* 향·진 위치 */}
               {townDots.map((t) => {
                 const show = k >= 2.2 || focusCode === t.county;
+                if (focusTown?.code === t.code) return null;
                 return (
-                  <g key={t.code} transform={`translate(${t.x},${t.y}) scale(${1 / k})`} pointerEvents="none">
-                    <circle r={show ? 2.4 : 1.6} style={{ fill: "var(--map-label)", opacity: show ? 0.75 : 0.35 }} />
+                  <g
+                    key={t.code}
+                    transform={`translate(${t.x},${t.y}) scale(${1 / k})`}
+                    className={onTownClick ? "group cursor-pointer" : undefined}
+                    pointerEvents={onTownClick ? "auto" : "none"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTownClick?.({ code: t.code, county: t.county, zh: t.zh, ko: t.ko, lng: t.lng, lat: t.lat });
+                    }}
+                  >
+                    <title>{`${t.zh} ${t.ko}`}</title>
+                    {/* 누르기 쉽게 넓은 투명 영역 */}
+                    <circle r={show ? 9 : 6} fill="transparent" />
+                    <circle
+                      r={show ? 2.6 : 1.8}
+                      className="transition-all group-hover:fill-[var(--seal)]"
+                      style={{ fill: "var(--map-label)", opacity: show ? 0.8 : 0.4 }}
+                    />
                     {show && (
                       <text
-                        x={4}
+                        x={4.5}
                         y={3.5}
-                        className="font-zh"
-                        style={{ fill: "var(--map-label)", fontSize: 9.5, opacity: 0.85, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 2.5 }}
+                        className="font-zh group-hover:font-bold"
+                        style={{ fill: "var(--map-label)", fontSize: 9.5, opacity: 0.9, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 2.5 }}
                       >
                         {t.zh}
+                        {t.ko && <tspan style={{ fontSize: 8.5, opacity: 0.8 }}> {t.ko}</tspan>}
                       </text>
                     )}
                   </g>

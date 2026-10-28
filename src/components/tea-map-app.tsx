@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ChinaMap } from "@/components/map/china-map";
 import { RegionSearch } from "@/components/map/region-search";
+import { TownCard } from "@/components/map/town-card";
 import { MapViewer } from "@/components/region-maps/map-viewer";
 import { MapsButton, regionLabel, RegionMapsDialog, relatedMaps } from "@/components/region-maps/region-maps-dialog";
 import { LoginDialog } from "@/components/login-dialog";
@@ -25,7 +26,7 @@ import { CATEGORY_META } from "@/lib/categories";
 import { buildRegionSearch, CHINA, makeOrigin, regionPath } from "@/lib/regions";
 import { categoryCounts, matchesQuery, teasInRegion } from "@/lib/tea-utils";
 import { TEA_CATEGORIES, type RegionMap, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
-import { originKey } from "@/lib/towns";
+import { originKey, type TownFocus } from "@/lib/towns";
 import { cn } from "@/lib/utils";
 
 type Me = Awaited<ReturnType<typeof api.me>>;
@@ -56,7 +57,7 @@ export function TeaMapApp() {
   }>({ open: false });
   const [mapResetKey, setMapResetKey] = useState(0);
   /** 지역 검색에서 고른 향·진 */
-  const [focusTown, setFocusTown] = useState<{ zh: string; ko: string; lng: number; lat: number } | null>(null);
+  const [focusTown, setFocusTown] = useState<TownFocus | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
 
   // 마신 기록
@@ -290,6 +291,10 @@ export function TeaMapApp() {
             onRegionClick={onRegionClick}
             resetKey={mapResetKey}
             focusTown={focusTown}
+            onTownClick={(t) => {
+              setFocusCode(t.county);
+              setFocusTown(t);
+            }}
             onLongPress={admin ? onMapLongPress : undefined}
           />
 
@@ -304,11 +309,7 @@ export function TeaMapApp() {
               }}
               onSelectTown={(t) => {
                 goTo(t.county);
-                if (t.lng != null && t.lat != null) setFocusTown({ zh: t.zh, ko: t.ko, lng: t.lng, lat: t.lat });
-                else {
-                  setFocusTown(null);
-                  toast.info(`${t.zh} ${t.ko}: 위치 정보가 없어 현·구만 표시합니다.`);
-                }
+                setFocusTown({ code: t.code, county: t.county, zh: t.zh, ko: t.ko, lng: t.lng, lat: t.lat });
               }}
             />
           </div>
@@ -339,6 +340,38 @@ export function TeaMapApp() {
           </nav>
 
           <Legend />
+
+          <div className="absolute top-14 left-3 z-20">
+            <AnimatePresence>
+              {focusTown && (
+                <TownCard
+                  town={focusTown}
+                  teas={teas}
+                  regions={regions}
+                  conv={conv}
+                  admin={admin}
+                  onClose={() => setFocusTown(null)}
+                  onOpenTea={(id) => {
+                    setDetailTab("info");
+                    setDetailId(id);
+                  }}
+                  onAddTea={() => {
+                    if (!regions || !conv) return;
+                    const origin = makeOrigin(regions, conv, focusTown.county);
+                    if (!origin) return;
+                    origin.detail = {
+                      kind: "town",
+                      code: focusTown.code,
+                      name_zh: focusTown.zh,
+                      name_ko: focusTown.ko,
+                      ...(focusTown.lng != null && focusTown.lat != null ? { lng: focusTown.lng, lat: focusTown.lat } : {}),
+                    };
+                    setForm({ open: true, tea: null, parent: null, origins: [origin] });
+                  }}
+                />
+              )}
+            </AnimatePresence>
+          </div>
         </section>
 
         {/* 목록 */}

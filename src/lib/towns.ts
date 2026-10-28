@@ -23,6 +23,16 @@ export function loadTowns(adcode: string): Promise<Town[]> {
 export const townCounty = (code: string) => code.slice(0, 6);
 export const townPos = (t: Town) => (t[2] != null && t[3] != null ? { lng: t[2], lat: t[3] } : null);
 
+/** 지도에서 고른(누르거나 검색한) 향·진 */
+export interface TownFocus {
+  code: string;
+  county: string;
+  zh: string;
+  ko: string;
+  lng?: number;
+  lat?: number;
+}
+
 export interface TownSearchItem {
   code: string;
   county: string;
