@@ -90,7 +90,7 @@ export function OriginPicker({
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
               >
-                <Badge variant="secondary" className="h-auto gap-1 py-1 pr-1 pl-2">
+                <Badge variant="secondary" className="h-auto max-w-full flex-wrap justify-start gap-1 py-1 pr-1 pl-2 text-left whitespace-normal">
                   <MapPin className="size-3" />
                   <span className="font-zh">{o.name_zh}</span>
                   <span>{o.name_ko}</span>
@@ -171,7 +171,7 @@ export function OriginPicker({
         )}
       </div>
 
-      <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-[repeat(3,minmax(0,1fr))_auto]">
         <Select
           value={prov}
           onValueChange={(v) => {
@@ -180,7 +180,7 @@ export function OriginPicker({
             setDist("");
           }}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full min-w-0">
             <SelectValue placeholder="성(省)" />
           </SelectTrigger>
           <SelectContent>
@@ -199,7 +199,7 @@ export function OriginPicker({
             setDist("");
           }}
         >
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full min-w-0">
             <SelectValue placeholder="시(市)" />
           </SelectTrigger>
           <SelectContent>
@@ -211,7 +211,7 @@ export function OriginPicker({
           </SelectContent>
         </Select>
         <Select value={dist} disabled={!dists.length} onValueChange={setDist}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger className="w-full min-w-0">
             <SelectValue placeholder="현·구(县区)" />
           </SelectTrigger>
           <SelectContent>
@@ -222,7 +222,7 @@ export function OriginPicker({
             ))}
           </SelectContent>
         </Select>
-        <Button type="button" variant="secondary" disabled={!picked} onClick={() => add(picked)}>
+        <Button type="button" variant="secondary" className="col-span-3 sm:col-span-1" disabled={!picked} onClick={() => add(picked)}>
           <Plus /> 추가
         </Button>
       </div>

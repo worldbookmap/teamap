@@ -115,7 +115,7 @@ export function RegionSearch({
               }}
               placeholder="지역·향진 찾기 — 항주, 무이산, 이무…"
               aria-label="지역 검색"
-              className="h-9 w-full rounded-lg border bg-card/95 pr-8 pl-8 text-sm shadow-sm backdrop-blur outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-9 w-full rounded-lg border bg-card/95 pr-8 pl-8 text-base shadow-sm sm:text-sm backdrop-blur outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
             <button
               type="button"
