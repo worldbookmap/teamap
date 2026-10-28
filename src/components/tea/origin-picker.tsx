@@ -8,12 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { HanjaConverter } from "@/lib/hanja";
-import { childrenOf, fullName, LEVEL_KO, makeOrigin, type RegionIndex, type RegionSearchItem } from "@/lib/regions";
+import {
+  childrenOf,
+  fullName,
+  LEVEL_KO,
+  makeOrigin,
+  searchRegions,
+  type RegionIndex,
+  type RegionSearchItem,
+} from "@/lib/regions";
 import { originKey, UNNAMED_SPOT } from "@/lib/towns";
 import type { OriginDetail, TeaOrigin } from "@/lib/types";
 import { OriginDetailDialog } from "./origin-detail-dialog";
-
-const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
 
 /** 산지 선택: 한글·한자 검색 또는 성 → 시 → 현 단계 선택 */
 export function OriginPicker({
@@ -62,26 +68,7 @@ export function OriginPicker({
   /** 세부 산지는 더 나눌 수 없는 말단 구역(현·구 등)에만 */
   const canDetail = (o: TeaOrigin) => regions[o.adcode]?.k === 0 && o.level !== "province";
 
-  const results = useMemo(() => {
-    const q = norm(query);
-    if (!q) return [];
-    const qs = norm(conv.simplify(query));
-    const scored: { item: RegionSearchItem; score: number }[] = [];
-    for (const item of search) {
-      const names = [item.ko, item.zh, item.trad].map(norm);
-      const full = norm(item.full_ko) + norm(item.full_zh);
-      let score = -1;
-      if (names.some((n) => n === q || n === qs)) score = 0;
-      else if (names.some((n) => n.startsWith(q) || n.startsWith(qs))) score = 1;
-      else if (names.some((n) => n.includes(q) || n.includes(qs))) score = 2;
-      else if (full.includes(q) || full.includes(qs)) score = 3;
-      if (score >= 0) scored.push({ item, score: score * 10 + ({ province: 0, city: 1, district: 2 }[item.level] ?? 3) });
-    }
-    return scored
-      .sort((a, b) => a.score - b.score)
-      .slice(0, 30)
-      .map((s) => s.item);
-  }, [query, search, conv]);
+  const results = useMemo(() => searchRegions(search, query, (x) => conv.simplify(x)), [query, search, conv]);
 
   const provinces = useMemo(() => childrenOf(regions, null), [regions]);
   const cities = useMemo(() => (prov ? childrenOf(regions, prov) : []), [regions, prov]);

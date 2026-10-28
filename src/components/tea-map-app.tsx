@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ChinaMap } from "@/components/map/china-map";
+import { RegionSearch } from "@/components/map/region-search";
 import { LoginDialog } from "@/components/login-dialog";
 import { TeaCard } from "@/components/tea/tea-card";
 import { TastingFormDialog } from "@/components/tasting/tasting-form-dialog";
@@ -267,7 +268,11 @@ export function TeaMapApp() {
             onLongPress={admin ? onMapLongPress : undefined}
           />
 
-          <nav className="absolute top-3 right-3 left-3 flex items-center gap-1 lg:right-auto">
+          <div className="absolute top-3 right-3 z-20">
+            <RegionSearch search={regionSearch} conv={conv} onSelect={goTo} />
+          </div>
+
+          <nav className="absolute top-3 right-14 left-3 flex items-center gap-1 lg:right-auto">
             <AnimatePresence>
               {regionCode !== CHINA && (
                 <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}>

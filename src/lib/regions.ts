@@ -81,6 +81,38 @@ export function buildRegionSearch(index: RegionIndex, conv: HanjaConverter): Reg
   }));
 }
 
+const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
+
+/**
+ * 지역 검색: 한글·간체·번체, 짧은 이름(항주)·전체 이름(절강성 항주시) 모두.
+ * 이름이 정확히 같은 것 → 앞부분이 같은 것 → 포함하는 것 → 상위 지역 이름에 포함, 같은 순위면 성 → 시 → 현 순.
+ */
+export function searchRegions(
+  search: RegionSearchItem[],
+  query: string,
+  simplify: (s: string) => string,
+  limit = 30,
+): RegionSearchItem[] {
+  const q = norm(query);
+  if (!q) return [];
+  const qs = norm(simplify(query));
+  const scored: { item: RegionSearchItem; score: number }[] = [];
+  for (const item of search) {
+    const names = [item.ko, item.zh, item.trad].map(norm);
+    const full = norm(item.full_ko) + norm(item.full_zh);
+    let score = -1;
+    if (names.some((n) => n === q || n === qs)) score = 0;
+    else if (names.some((n) => n.startsWith(q) || n.startsWith(qs))) score = 1;
+    else if (names.some((n) => n.includes(q) || n.includes(qs))) score = 2;
+    else if (full.includes(q) || full.includes(qs)) score = 3;
+    if (score >= 0) scored.push({ item, score: score * 10 + ({ province: 0, city: 1, district: 2 }[item.level] ?? 3) });
+  }
+  return scored
+    .sort((a, b) => a.score - b.score)
+    .slice(0, limit)
+    .map((s) => s.item);
+}
+
 export const LEVEL_KO: Record<RegionLevel, string> = {
   province: "성",
   city: "시",
