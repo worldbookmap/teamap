@@ -1,4 +1,4 @@
-import type { Tasting, TastingInput, Tea, TeaInput } from "../types";
+import type { RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
 
 export interface TeaStore {
   kind: "local" | "supabase";
@@ -15,6 +15,18 @@ export interface TeaStore {
   createTasting(input: TastingInput): Promise<Tasting>;
   updateTasting(id: string, input: Partial<TastingInput>): Promise<Tasting | null>;
   removeTasting(id: string): Promise<boolean>;
+
+  /** 지역 참고 지도 */
+  listRegionMaps(): Promise<RegionMap[]>;
+  createRegionMap(input: RegionMapInput): Promise<RegionMap>;
+  updateRegionMap(id: string, input: Partial<RegionMapInput>): Promise<RegionMap | null>;
+  removeRegionMap(id: string): Promise<boolean>;
+
+  /**
+   * 브라우저에서 저장소로 바로 올릴 수 있는 일회용 주소 (Vercel 의 4.5MB 요청 제한을 피함).
+   * 지원하지 않으면 null — 그때는 /api/upload 로 서버를 거쳐 올립니다.
+   */
+  signUpload(file: { name: string; type: string }): Promise<{ uploadUrl: string; publicUrl: string } | null>;
 }
 
 /** Supabase 에 아직 실행하지 않은 마이그레이션이 있을 때 (테이블·컬럼 없음) */

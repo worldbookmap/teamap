@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Tasting, TastingInput, Tea, TeaInput } from "../types";
+import type { RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
 import { extOf } from "./local";
 import { MissingTableError, type TeaStore } from "./types";
 
@@ -8,6 +8,8 @@ const TABLE = "teas";
 const TASTINGS = "tastings";
 const TASTINGS_MIGRATION = "supabase/migrations/20261028010000_tastings.sql";
 const PRODUCTS_MIGRATION = "supabase/migrations/20261028020000_tea_products.sql";
+const MAPS = "region_maps";
+const MAPS_MIGRATION = "supabase/migrations/20261028030000_region_maps.sql";
 
 let client: SupabaseClient | null = null;
 
@@ -20,6 +22,9 @@ function db() {
 }
 
 function check<T>({ data, error }: { data: T; error: { message: string; code?: string } | null }): T {
+  if (error?.code === "PGRST205" && error.message.includes(MAPS)) {
+    throw new MissingTableError(`${MAPS} 테이블`, MAPS_MIGRATION);
+  }
   if (error?.code === "PGRST205" && error.message.includes(TASTINGS)) {
     throw new MissingTableError(`${TASTINGS} 테이블`, TASTINGS_MIGRATION);
   }
@@ -102,6 +107,36 @@ export const supabaseStore: TeaStore = {
   async removeTasting(id) {
     const rows = check(await db().from(TASTINGS).delete().eq("id", id).select("id")) as { id: string }[];
     return rows.length > 0;
+  },
+
+  async listRegionMaps() {
+    return check(await db().from(MAPS).select("*").order("created_at")) as RegionMap[];
+  },
+
+  async createRegionMap(input: RegionMapInput) {
+    return check(await db().from(MAPS).insert(input).select().single()) as RegionMap;
+  },
+
+  async updateRegionMap(id, input) {
+    const rows = check(
+      await db()
+        .from(MAPS)
+        .update({ ...input, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .select(),
+    ) as RegionMap[];
+    return rows[0] ?? null;
+  },
+
+  async removeRegionMap(id) {
+    const rows = check(await db().from(MAPS).delete().eq("id", id).select("id")) as { id: string }[];
+    return rows.length > 0;
+  },
+
+  async signUpload(file) {
+    const key = `${new Date().getFullYear()}/${crypto.randomUUID()}${extOf(file)}`;
+    const { signedUrl } = check(await db().storage.from(IMAGE_BUCKET).createSignedUploadUrl(key)) as { signedUrl: string };
+    return { uploadUrl: signedUrl, publicUrl: db().storage.from(IMAGE_BUCKET).getPublicUrl(key).data.publicUrl };
   },
 
   async uploadImage(file) {

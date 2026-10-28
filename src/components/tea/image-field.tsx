@@ -92,7 +92,7 @@ export function ImageField({ value, onChange }: { value: string[]; onChange: (v:
         )}
       >
         {uploading ? <Loader2 className="size-5 animate-spin" /> : <ImagePlus className="size-5" />}
-        {uploading ? "올리는 중…" : "사진을 끌어다 놓거나 눌러서 선택 (여러 장 가능, 8MB 이하)"}
+        {uploading ? "올리는 중…" : "사진을 끌어다 놓거나 눌러서 선택 (여러 장 가능)"}
       </motion.button>
       <input
         ref={inputRef}

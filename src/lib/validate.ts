@@ -1,6 +1,7 @@
 import {
   TEA_CATEGORIES,
   type OriginDetail,
+  type RegionMapInput,
   type TastingInput,
   type TeaCategory,
   type TeaInput,
@@ -130,6 +131,42 @@ export function parseTastingInput(
     out.photos ??= [];
   } else {
     delete out.tea_id; // 다른 차로 옮기지 않음
+  }
+  return { ok: true, value: out };
+}
+
+/** 참고 지도 요청 본문 정리. partial=true 면 넘어온 필드만 */
+export function parseRegionMapInput(
+  body: unknown,
+  partial = false,
+): { ok: true; value: Partial<RegionMapInput> } | { ok: false; error: string } {
+  if (!body || typeof body !== "object") return { ok: false, error: "잘못된 요청입니다." };
+  const b = body as Record<string, unknown>;
+  const out: Partial<RegionMapInput> = {};
+  if ("adcode" in b) {
+    const a = str(b.adcode, 20);
+    if (!/^\d{6}$/.test(a)) return { ok: false, error: "지역을 선택해 주세요." };
+    out.adcode = a;
+  }
+  if ("title" in b) out.title = str(b.title, 200);
+  if ("description" in b) out.description = str(b.description, 5000);
+  if ("link" in b) {
+    const l = str(b.link, 2000);
+    if (l && !/^https?:\/\//.test(l)) return { ok: false, error: "링크는 http(s):// 로 시작해야 합니다." };
+    out.link = l;
+  }
+  if ("images" in b) {
+    out.images = Array.isArray(b.images)
+      ? b.images.map((u) => str(u, 2000)).filter((u) => /^(https?:\/\/|\/api\/uploads\/)/.test(u))
+      : [];
+  }
+  if (!partial) {
+    if (!out.adcode) return { ok: false, error: "지역을 선택해 주세요." };
+    out.title ??= "";
+    out.description ??= "";
+    out.link ??= "";
+    out.images ??= [];
+    if (!out.images.length && !out.link) return { ok: false, error: "지도 이미지나 링크 중 하나는 넣어 주세요." };
   }
   return { ok: true, value: out };
 }

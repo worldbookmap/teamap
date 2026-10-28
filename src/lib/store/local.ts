@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Tasting, TastingInput, Tea, TeaInput } from "../types";
+import type { RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
 import { buildSeedTeas } from "./seed";
 import type { TeaStore } from "./types";
 
@@ -9,6 +9,7 @@ export const DATA_DIR = path.join(process.cwd(), ".data");
 export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 const DB_FILE = path.join(DATA_DIR, "teas.json");
 const TASTING_FILE = path.join(DATA_DIR, "tastings.json");
+const MAP_FILE = path.join(DATA_DIR, "region-maps.json");
 
 let queue: Promise<unknown> = Promise.resolve();
 /** 파일 쓰기가 겹치지 않도록 순서대로 실행 */
@@ -47,14 +48,16 @@ async function writeJson(file: string, data: unknown) {
   await fs.rename(tmp, file);
 }
 
-async function readTastings(): Promise<Tasting[]> {
+async function readList<T>(file: string): Promise<T[]> {
   try {
-    return JSON.parse(await fs.readFile(TASTING_FILE, "utf8"));
+    return JSON.parse(await fs.readFile(file, "utf8"));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw e;
   }
 }
+const readTastings = () => readList<Tasting>(TASTING_FILE);
+const readMaps = () => readList<RegionMap>(MAP_FILE);
 
 const byDateDesc = (a: Tasting, b: Tasting) =>
   b.tasted_on.localeCompare(a.tasted_on) || b.created_at.localeCompare(a.created_at);
@@ -134,6 +137,40 @@ export const localStore: TeaStore = {
       return true;
     }),
 
+  listRegionMaps: () => serial(async () => (await readMaps()).sort((a, b) => a.created_at.localeCompare(b.created_at))),
+
+  createRegionMap: (input: RegionMapInput) =>
+    serial(async () => {
+      const list = await readMaps();
+      const now = new Date().toISOString();
+      const map: RegionMap = { ...input, id: crypto.randomUUID(), created_at: now, updated_at: now };
+      list.push(map);
+      await writeJson(MAP_FILE, list);
+      return map;
+    }),
+
+  updateRegionMap: (id, input) =>
+    serial(async () => {
+      const list = await readMaps();
+      const i = list.findIndex((m) => m.id === id);
+      if (i < 0) return null;
+      list[i] = { ...list[i], ...input, id, updated_at: new Date().toISOString() };
+      await writeJson(MAP_FILE, list);
+      return list[i];
+    }),
+
+  removeRegionMap: (id) =>
+    serial(async () => {
+      const list = await readMaps();
+      const next = list.filter((m) => m.id !== id);
+      if (next.length === list.length) return false;
+      await writeJson(MAP_FILE, next);
+      return true;
+    }),
+
+  // 로컬에서는 서버(/api/upload)를 거쳐 저장
+  signUpload: async () => null,
+
   async uploadImage(file) {
     await fs.mkdir(UPLOAD_DIR, { recursive: true });
     const name = `${crypto.randomUUID()}${extOf(file)}`;
@@ -142,7 +179,7 @@ export const localStore: TeaStore = {
   },
 };
 
-export function extOf(file: File) {
+export function extOf(file: { name: string; type: string }) {
   const fromName = path.extname(file.name).toLowerCase();
   if (/^\.(jpe?g|png|webp|gif|avif)$/.test(fromName)) return fromName;
   return { "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif", "image/avif": ".avif" }[file.type] ?? ".jpg";

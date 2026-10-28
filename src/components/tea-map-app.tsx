@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ChinaMap } from "@/components/map/china-map";
 import { RegionSearch } from "@/components/map/region-search";
+import { MapViewer } from "@/components/region-maps/map-viewer";
+import { MapsButton, regionLabel, RegionMapsDialog, relatedMaps } from "@/components/region-maps/region-maps-dialog";
 import { LoginDialog } from "@/components/login-dialog";
 import { TeaCard } from "@/components/tea/tea-card";
 import { TastingFormDialog } from "@/components/tasting/tasting-form-dialog";
@@ -22,7 +24,7 @@ import { api } from "@/lib/api";
 import { CATEGORY_META } from "@/lib/categories";
 import { buildRegionSearch, CHINA, makeOrigin, regionPath } from "@/lib/regions";
 import { categoryCounts, matchesQuery, teasInRegion } from "@/lib/tea-utils";
-import { TEA_CATEGORIES, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
+import { TEA_CATEGORIES, type RegionMap, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
 import { originKey } from "@/lib/towns";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +65,15 @@ export function TeaMapApp() {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [drunkOnly, setDrunkOnly] = useState(false);
 
+  // 지역 참고 지도
+  const [regionMaps, setRegionMaps] = useState<RegionMap[]>([]);
+  const [mapsError, setMapsError] = useState<string | null>(null);
+  const [mapsOpen, setMapsOpen] = useState(false);
+  const [viewingMap, setViewingMap] = useState<RegionMap | null>(null);
+  const [editingMap, setEditingMap] = useState<RegionMap | null>(null);
+  /** 목록에서 연 지도면 닫을 때 목록으로 돌아감 */
+  const [viewFromList, setViewFromList] = useState(false);
+
   const refreshMe = useCallback(() => api.me().then(setMe).catch(() => setMe(null)), []);
 
   useEffect(() => {
@@ -75,6 +86,10 @@ export function TeaMapApp() {
       .listTastings()
       .then(setTastings)
       .catch((e) => setTastingError(e.message));
+    api
+      .listRegionMaps()
+      .then(setRegionMaps)
+      .catch((e) => setMapsError(e.message));
     refreshMe();
   }, [refreshMe]);
 
@@ -187,6 +202,10 @@ export function TeaMapApp() {
 
   const regionName = (code: string) => (code === CHINA ? "中国" : (regions?.[code]?.n ?? ""));
   const curName = regionName(regionCode);
+  const mapCount = useMemo(() => {
+    const r = relatedMaps(regionMaps, regions, regionCode);
+    return r.here.length + r.below.length + r.above.length;
+  }, [regionMaps, regions, regionCode]);
   const detail = teas.find((t) => t.id === detailId) ?? null;
   const detailParent = detail?.parent_id ? (teas.find((t) => t.id === detail.parent_id) ?? null) : null;
   const teaName = (id: string) => {
@@ -321,6 +340,7 @@ export function TeaMapApp() {
                   {loading ? "불러오는 중…" : `${inRegion.length}종의 차`}
                   {regionCode === CHINA && " · 지도의 성(省)을 눌러 시·현 단위까지 들어가 보세요"}
                 </p>
+                {(admin || mapCount > 0) && <MapsButton className="mt-2" count={mapCount} onClick={() => setMapsOpen(true)} />}
               </motion.div>
             </AnimatePresence>
 
@@ -491,6 +511,53 @@ export function TeaMapApp() {
           setTimelineOpen(false);
           setDetailTab("tastings");
           setDetailId(id);
+        }}
+      />
+      <RegionMapsDialog
+        open={mapsOpen}
+        onOpenChange={setMapsOpen}
+        regionCode={regionCode}
+        maps={regionMaps}
+        error={mapsError}
+        regions={regions}
+        regionSearch={regionSearch}
+        conv={conv}
+        admin={admin}
+        editing={editingMap}
+        onEditingDone={() => setEditingMap(null)}
+        onView={(m) => {
+          setMapsOpen(false);
+          setViewFromList(true);
+          setViewingMap(m);
+        }}
+        onSaved={(m) => setRegionMaps((list) => (list.some((x) => x.id === m.id) ? list.map((x) => (x.id === m.id ? m : x)) : [...list, m]))}
+      />
+      <MapViewer
+        map={viewingMap}
+        regionLabel={viewingMap ? regionLabel(regions, conv, viewingMap.adcode) : ""}
+        admin={admin}
+        onClose={() => {
+          setViewingMap(null);
+          if (viewFromList) setMapsOpen(true);
+          setViewFromList(false);
+        }}
+        onEdit={(m) => {
+          setViewingMap(null);
+          setViewFromList(false);
+          setEditingMap(m);
+          setMapsOpen(true);
+        }}
+        onDelete={async (m) => {
+          try {
+            await api.deleteRegionMap(m.id);
+            setRegionMaps((list) => list.filter((x) => x.id !== m.id));
+            setViewingMap(null);
+            if (viewFromList) setMapsOpen(true);
+            setViewFromList(false);
+            toast.success("참고 지도를 삭제했습니다.");
+          } catch (e) {
+            toast.error((e as Error).message);
+          }
         }}
       />
       <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} onLoggedIn={refreshMe} />

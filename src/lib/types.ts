@@ -64,3 +64,17 @@ export interface Tasting {
 }
 
 export type TastingInput = Omit<Tasting, "id" | "created_at" | "updated_at">;
+
+/** 지역마다 붙이는 참고 지도 (차산 지도, 옛 지도, 외부 지도 링크 등) */
+export interface RegionMap {
+  id: string;
+  adcode: string; // 지역 (성·시·현)
+  title: string;
+  description: string; // 설명·출처
+  images: string[];
+  link: string; // 외부 지도 주소 (선택)
+  created_at: string;
+  updated_at: string;
+}
+
+export type RegionMapInput = Omit<RegionMap, "id" | "created_at" | "updated_at">;
