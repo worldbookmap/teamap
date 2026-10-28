@@ -84,8 +84,13 @@ export function ChinaMap({
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // 마우스를 올린 구역 (구역이 바뀔 때만 다시 그림. 같은 구역 안에서는 툴팁을 tipRef 로 직접 옮김)
   const [hover, setHover] = useState<{ code: string; x: number; y: number } | null>(null);
-  const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity);
+  const tipRef = useRef<HTMLDivElement>(null);
+  // 확대·이동 중에는 React 로 다시 그리지 않고 <g> 의 transform 과 --k 만 바꿉니다. k 상태는 끝났을 때만 갱신
+  const transformRef = useRef<ZoomTransform>(zoomIdentity);
+  const zoomGRef = useRef<SVGGElement>(null);
+  const [k, setK] = useState(1);
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
@@ -197,16 +202,33 @@ export function ChinaMap({
       const p = f.properties;
       const c = p.centroid ?? p.center ?? geoCentroid(f);
       const pt = projection(c) ?? path.centroid(f);
-      return { f, d: path(f) ?? "", area: path.area(f), x: pt[0], y: pt[1] };
+      const label = p.name.replace(/(维吾尔|壮族|回族)?自治区$|省$|市$|特别行政区$/, "");
+      return { f, d: path(f) ?? "", area: path.area(f), x: pt[0], y: pt[1], label, labelKo: conv?.toHangul(label) ?? "" };
     });
-  }, [features, path, projection]);
+  }, [features, path, projection, conv]);
 
   // 확대/이동
   useEffect(() => {
     if (!svgEl) return;
     const z = d3zoom<SVGSVGElement, unknown>()
       .scaleExtent([1, 14])
-      .on("zoom", (e) => setTransform(e.transform));
+      .on("start", () => {
+        svgEl.dataset.zooming = "1";
+      })
+      .on("zoom", (e) => {
+        transformRef.current = e.transform;
+        const g = zoomGRef.current;
+        if (g) {
+          g.setAttribute("transform", e.transform.toString());
+          // 글자·표식은 반대로 축소해 크기 유지 (CSS 변수는 하위 전체 스타일을 다시 계산하게 해서 느림)
+          const inv = `scale(${1 / e.transform.k})`;
+          for (const el of g.querySelectorAll(".map-cs")) el.setAttribute("transform", inv);
+        }
+      })
+      .on("end", (e) => {
+        delete svgEl.dataset.zooming;
+        setK(e.transform.k);
+      });
     zoomRef.current = z;
     const sel = select(svgEl);
     sel.call(z).on("dblclick.zoom", null);
@@ -261,7 +283,7 @@ export function ChinaMap({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const timer = window.setTimeout(() => {
-      const ll = projection.invert?.(transform.invert([x, y]));
+      const ll = projection.invert?.(transformRef.current.invert([x, y]));
       setPressing(null);
       if (!ll || !press.current) return;
       press.current.fired = true;
@@ -272,9 +294,10 @@ export function ChinaMap({
     setPressing({ x, y });
   };
 
-  const k = transform.k;
   const hovered = hover ? shapesData.find((s) => s.f.properties.adcode === hover.code) : null;
   const hoveredTeas = hover ? (regionTeas.get(hover.code) ?? []) : [];
+  const tipLeft = (x: number) => Math.min(x + 14, width - 260);
+  const tipTop = (y: number) => Math.max(y - 12, 8);
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-map-sea">
@@ -286,9 +309,9 @@ export function ChinaMap({
             width={width}
             height={height}
             className="absolute inset-0 touch-none select-none"
-            initial={{ opacity: 0, scale: 0.94, filter: "blur(4px)" }}
-            animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-            exit={{ opacity: 0, scale: 1.06, filter: "blur(4px)" }}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.04 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             onPointerLeave={() => {
               setHover(null);
@@ -303,8 +326,9 @@ export function ChinaMap({
                 <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="oklch(0.4 0.03 60)" floodOpacity="0.18" />
               </filter>
             </defs>
-            <g transform={transform.toString()}>
-              <g filter="url(#land-shadow)">
+            {/* transform 은 확대 핸들러가 직접 씁니다 (React 가 덮어쓰지 않도록 prop 으로 주지 않음) */}
+            <g ref={zoomGRef}>
+              <g className="map-land-shadow">
                 {shapesData.map(({ f, d }) => {
                   const code = f.properties.adcode;
                   const decorative = code.includes("_");
@@ -336,9 +360,17 @@ export function ChinaMap({
                       }}
                       onPointerMove={(e) => {
                         if (decorative) return;
-                        const rect = e.currentTarget.ownerSVGElement!.getBoundingClientRect();
-                        setHover({ code, x: e.clientX - rect.left, y: e.clientY - rect.top });
                         const p = press.current;
+                        if (e.pointerType === "mouse") {
+                          const rect = e.currentTarget.ownerSVGElement!.getBoundingClientRect();
+                          const x = e.clientX - rect.left;
+                          const y = e.clientY - rect.top;
+                          if (hover?.code !== code) setHover({ code, x, y });
+                          else if (tipRef.current) {
+                            tipRef.current.style.left = `${tipLeft(x)}px`;
+                            tipRef.current.style.top = `${tipTop(y)}px`;
+                          }
+                        }
                         if (p && !p.fired && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) cancelPress();
                       }}
                       onPointerDown={(e) => !decorative && f.properties.childrenNum === 0 && startPress(e, code)}
@@ -356,29 +388,33 @@ export function ChinaMap({
               </g>
 
               {/* 지명 */}
-              {shapesData.map(({ f, area, x, y }) => {
+              {shapesData.map(({ f, area, x, y, label, labelKo }) => {
                 const code = f.properties.adcode;
                 if (code.includes("_")) return null;
                 const has = (regionTeas.get(code)?.length ?? 0) > 0;
                 if (area * k * k < (has ? 900 : 2600)) return null;
                 return (
-                  <g key={`l-${code}`} transform={`translate(${x},${y + (has ? 24 / k : 0)}) scale(${1 / k})`} pointerEvents="none">
+                  <g key={`l-${code}`} transform={`translate(${x},${y})`} pointerEvents="none">
+                    <g className="map-cs" transform={`scale(${1 / k})`}>
+                    <g transform={`translate(0,${has ? 24 : 0})`}>
                     <text
                       textAnchor="middle"
                       className="font-zh"
                       style={{ fill: "var(--map-label)", fontSize: 11.5, fontWeight: 600, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3, strokeOpacity: 0.85 }}
                     >
-                      {f.properties.name.replace(/(维吾尔|壮族|回族)?自治区$|省$|市$|特别行政区$/, "")}
+                      {label}
                     </text>
-                    {conv && (
+                    {labelKo && (
                       <text
                         textAnchor="middle"
                         y={12}
                         style={{ fill: "var(--map-label)", fontSize: 9.5, opacity: 0.8, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3, strokeOpacity: 0.85 }}
                       >
-                        {conv.toHangul(f.properties.name.replace(/(维吾尔|壮族|回族)?自治区$|省$|市$|特别行政区$/, ""))}
+                        {labelKo}
                       </text>
                     )}
+                    </g>
+                    </g>
                   </g>
                 );
               })}
@@ -399,7 +435,7 @@ export function ChinaMap({
                     style={{ x, y }}
                     pointerEvents="none"
                   >
-                    <g transform={`scale(${1 / k})`}>
+                    <g className="map-cs" transform={`scale(${1 / k})`}>
                       {highlighted.has(code) && (
                         <motion.circle
                           r={r + 6}
@@ -427,7 +463,7 @@ export function ChinaMap({
                 return (
                   <g
                     key={t.code}
-                    transform={`translate(${t.x},${t.y}) scale(${1 / k})`}
+                    transform={`translate(${t.x},${t.y})`}
                     className={onTownClick ? "group cursor-pointer" : undefined}
                     pointerEvents={onTownClick ? "auto" : "none"}
                     onClick={(e) => {
@@ -436,6 +472,7 @@ export function ChinaMap({
                     }}
                   >
                     <title>{`${t.zh} ${t.ko}`}</title>
+                    <g className="map-cs" transform={`scale(${1 / k})`}>
                     {/* 누르기 쉽게 넓은 투명 영역 */}
                     <circle r={show ? 9 : 6} fill="transparent" />
                     <circle
@@ -454,13 +491,15 @@ export function ChinaMap({
                         {t.ko && <tspan style={{ fontSize: 8.5, opacity: 0.8 }}> {t.ko}</tspan>}
                       </text>
                     )}
+                    </g>
                   </g>
                 );
               })}
 
               {/* 검색으로 고른 향·진 */}
               {focusTown && focusTownPt && (
-                <g transform={`translate(${focusTownPt[0]},${focusTownPt[1]}) scale(${1 / k})`} pointerEvents="none">
+                <g transform={`translate(${focusTownPt[0]},${focusTownPt[1]})`} pointerEvents="none">
+                  <g className="map-cs" transform={`scale(${1 / k})`}>
                   <motion.circle
                     r={10}
                     fill="none"
@@ -479,12 +518,14 @@ export function ChinaMap({
                   >
                     {focusTown.zh} <tspan style={{ fontWeight: 400, fontSize: 10.5 }}>{focusTown.ko}</tspan>
                   </text>
+                  </g>
                 </g>
               )}
 
               {/* 세부 산지 핀 */}
               {pins.map((p) => (
-                <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y}) scale(${1 / k})`}>
+                <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y})`}>
+                  <g className="map-cs" transform={`scale(${1 / k})`}>
                   <title>{`${p.zh || p.ko || "이름 없는 위치"}\n${p.teas.map((t) => t.name_zh || t.name_ko).join(", ")}`}</title>
                   <motion.path
                     d="M0 0 C -5 -7 -6.5 -10 -6.5 -13 A 6.5 6.5 0 1 1 6.5 -13 C 6.5 -10 5 -7 0 0 Z"
@@ -505,6 +546,7 @@ export function ChinaMap({
                       {p.zh || p.ko}
                     </text>
                   )}
+                  </g>
                 </g>
               ))}
             </g>
@@ -543,15 +585,17 @@ export function ChinaMap({
         {hover && hovered && (
           <motion.div
             key="tip"
+            ref={tipRef}
             className="pointer-events-none absolute z-10 max-w-64 rounded-lg border bg-popover/95 px-3 py-2 text-popover-foreground shadow-lg backdrop-blur"
+            style={{ left: tipLeft(hover.x), top: tipTop(hover.y) }}
             initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0, left: Math.min(hover.x + 14, width - 260), top: Math.max(hover.y - 12, 8) }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.12 }}
           >
             <div className="flex items-baseline gap-2">
               <span className="font-zh text-base font-semibold">{hovered.f.properties.name}</span>
-              {conv && <span className="text-xs text-muted-foreground">{conv.toHangul(hovered.f.properties.name)}</span>}
+              {hovered.labelKo && <span className="text-xs text-muted-foreground">{hovered.labelKo}</span>}
             </div>
             {hoveredTeas.length > 0 ? (
               <ul className="mt-1 space-y-0.5 text-xs">

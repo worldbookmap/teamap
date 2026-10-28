@@ -173,3 +173,16 @@
     radial-gradient(circle at 20% 10%, oklch(0.35 0.04 60 / 0.35), transparent 40%),
     radial-gradient(circle at 85% 80%, oklch(0.3 0.05 130 / 0.25), transparent 45%);
 }
+
+/* 땅 그림자는 무거워서 확대·이동 중과 터치 기기에서는 끔 */
+.map-land-shadow {
+  filter: url(#land-shadow);
+}
+[data-zooming] .map-land-shadow {
+  filter: none;
+}
+@media (pointer: coarse) {
+  .map-land-shadow {
+    filter: none;
+  }
+}
