@@ -106,13 +106,13 @@ export class HanjaConverter {
 
   /** 간체 → 번체. 사전 단어는 사전 표기를 따릅니다 */
   traditionalize(text: string) {
-    const s = this.simplify(text);
+    const s = [...this.simplify(text)]; // 확장 영역 한자(서로게이트 쌍)도 한 글자로
     let out = "";
     for (let i = 0; i < s.length; ) {
       const w = this.matchWord(s, i);
       if (w) {
         out += w[1] || w[0];
-        i += w[0].length;
+        i += [...w[0]].length;
         continue;
       }
       const ch = s[i];
@@ -122,9 +122,9 @@ export class HanjaConverter {
     return out;
   }
 
-  private matchWord(s: string, i: number): Word | undefined {
+  private matchWord(s: string[], i: number): Word | undefined {
     for (let len = Math.min(MAX_WORD, s.length - i); len >= 2; len--) {
-      const w = this.bySimp.get(s.slice(i, i + len));
+      const w = this.bySimp.get(s.slice(i, i + len).join(""));
       if (w) return w;
     }
     return undefined;
@@ -140,14 +140,14 @@ export class HanjaConverter {
 
   /** 한자 → 한글 독음 */
   toHangul(text: string): string {
-    const s = this.simplify(text);
+    const s = [...this.simplify(text)];
     let out = "";
     let wordStart = true;
     for (let i = 0; i < s.length; ) {
       const w = this.matchWord(s, i);
       if (w) {
         out += w[2];
-        i += w[0].length;
+        i += [...w[0]].length;
         wordStart = false;
         continue;
       }

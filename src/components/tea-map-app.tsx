@@ -128,7 +128,7 @@ export function TeaMapApp() {
   };
 
   return (
-    <div className="paper-grain flex h-dvh flex-col overflow-hidden">
+    <div className="paper-grain flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
       <Header
         admin={admin}
         me={me}
@@ -140,9 +140,9 @@ export function TeaMapApp() {
         onAdd={openNewTea}
       />
 
-      <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
+      <main className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
         {/* 지도 */}
-        <section className="relative h-[52dvh] shrink-0 border-b lg:h-auto lg:flex-1 lg:border-r lg:border-b-0">
+        <section className="relative h-[52svh] shrink-0 border-b lg:h-auto lg:flex-1 lg:border-r lg:border-b-0">
           <ChinaMap
             viewCode={viewCode}
             focusCode={focusCode}
@@ -181,7 +181,7 @@ export function TeaMapApp() {
         </section>
 
         {/* 목록 */}
-        <aside className="flex min-h-0 flex-1 flex-col bg-background/60 lg:w-[420px] lg:flex-none">
+        <aside className="flex flex-col bg-background/60 lg:min-h-0 lg:w-[420px] lg:flex-none">
           <div className="space-y-3 border-b p-4">
             <AnimatePresence mode="wait">
               <motion.div
@@ -245,7 +245,8 @@ export function TeaMapApp() {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {/* 모바일은 페이지 전체가 스크롤, 데스크톱은 목록만 스크롤 */}
+          <div className="p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {inRegion.length > 0 ? (
               <motion.ul layout className="space-y-2">
                 <AnimatePresence initial={false} mode="popLayout">

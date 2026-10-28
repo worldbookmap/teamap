@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_KR, Noto_Serif_KR, Noto_Serif_SC } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,6 +12,16 @@ const serifSc = Noto_Serif_SC({ variable: "--font-noto-serif-sc", subsets: ["lat
 export const metadata: Metadata = {
   title: "중국 차 지도 · 中國茶地圖",
   description: "중국의 성(省)·시·현 단위 산지별로 6대 다류의 명차를 찾아보는 지도",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover", // 아이폰 홈 인디케이터 영역까지 고려 (safe-area-inset)
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f7f2e8" },
+    { media: "(prefers-color-scheme: dark)", color: "#2a211b" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

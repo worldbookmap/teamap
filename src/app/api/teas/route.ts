@@ -1,9 +1,11 @@
+import { connection } from "next/server";
 import { isAdmin, unauthorized } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import type { TeaInput } from "@/lib/types";
 import { parseTeaInput } from "@/lib/validate";
 
 export async function GET() {
+  await connection(); // 저장소를 요청마다 읽도록 (캐시·정적 생성 방지)
   const teas = await getStore().list();
   return Response.json(teas);
 }

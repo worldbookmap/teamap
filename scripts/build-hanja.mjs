@@ -94,14 +94,19 @@ for (const [ch, raw] of readings.kHangul) {
 }
 
 for (const [ch, v] of variants.kTraditionalVariant) {
-  const trads = v.split(" ").map(cpToChar).filter((t) => t !== ch);
+  const all = v.split(" ").map(cpToChar);
+  // 蒙(蒙·濛·懞·矇)·干·面 처럼 자기 자신도 번체이고 한국 음이 있는 글자는 바꾸지 않습니다
+  if (all.includes(ch) && readings.kHangul.has(ch)) continue;
+  const trads = all.filter((t) => t !== ch);
   if (!trads.length) continue;
   const best = trads.find((t) => readings.kHangul.has(t)) ?? trads[0];
   toTrad[ch] = best;
   if (!reading[ch] && reading[best]) reading[ch] = reading[best];
 }
+// 흔히 쓰는 글자만 (蒙 → 𰰡 같은 확장 G 영역의 드문 간체 변형은 제외)
+const isCommon = (c) => c.length === 1 && (core.kUnihanCore2020.has(c) || iicore.kIICore.has(c));
 for (const [ch, v] of variants.kSimplifiedVariant) {
-  const simp = v.split(" ").map(cpToChar).find((s) => s !== ch);
+  const simp = v.split(" ").map(cpToChar).find((s) => s !== ch && isCommon(s));
   if (simp) toSimp[ch] = simp;
 }
 for (const [ch, syl] of Object.entries(OVERRIDES)) {

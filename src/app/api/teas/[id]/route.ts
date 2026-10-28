@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { isAdmin, unauthorized } from "@/lib/auth";
 import { getStore } from "@/lib/store";
 import { parseTeaInput } from "@/lib/validate";
@@ -5,6 +6,7 @@ import { parseTeaInput } from "@/lib/validate";
 const notFound = () => Response.json({ error: "차를 찾을 수 없습니다." }, { status: 404 });
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/teas/[id]">) {
+  await connection();
   const { id } = await ctx.params;
   const tea = await getStore().get(id);
   return tea ? Response.json(tea) : notFound();
