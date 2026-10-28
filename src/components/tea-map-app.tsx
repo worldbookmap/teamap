@@ -1,0 +1,415 @@
+"use client";
+
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, LogIn, LogOut, Moon, Plus, Search, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { ChinaMap } from "@/components/map/china-map";
+import { LoginDialog } from "@/components/login-dialog";
+import { TeaCard } from "@/components/tea/tea-card";
+import { TeaDetailDialog } from "@/components/tea/tea-detail-dialog";
+import { TeaFormDialog } from "@/components/tea/tea-form-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useConverter } from "@/hooks/use-converter";
+import { api } from "@/lib/api";
+import { CATEGORY_META } from "@/lib/categories";
+import { buildRegionSearch, CHINA, makeOrigin, regionPath } from "@/lib/regions";
+import { categoryCounts, matchesQuery, teasInRegion } from "@/lib/tea-utils";
+import { TEA_CATEGORIES, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+type Me = Awaited<ReturnType<typeof api.me>>;
+
+export function TeaMapApp() {
+  const bundle = useConverter();
+  const conv = bundle?.conv ?? null;
+  const regions = bundle?.regions ?? null;
+
+  const [teas, setTeas] = useState<Tea[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [me, setMe] = useState<Me | null>(null);
+
+  const [viewCode, setViewCode] = useState(CHINA);
+  const [focusCode, setFocusCode] = useState<string | null>(null);
+  const [cats, setCats] = useState<Set<TeaCategory>>(new Set());
+  const [query, setQuery] = useState("");
+  const [hoverTeaId, setHoverTeaId] = useState<string | null>(null);
+
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [form, setForm] = useState<{ open: boolean; tea?: Tea | null; origins?: TeaOrigin[] }>({ open: false });
+  const [loginOpen, setLoginOpen] = useState(false);
+
+  const refreshMe = useCallback(() => api.me().then(setMe).catch(() => setMe(null)), []);
+
+  useEffect(() => {
+    api
+      .listTeas()
+      .then(setTeas)
+      .catch((e) => toast.error(`차 목록을 불러오지 못했습니다: ${e.message}`))
+      .finally(() => setLoading(false));
+    refreshMe();
+  }, [refreshMe]);
+
+  // 등록된 차 이름도 한글→한자 사전에 넣어 둡니다
+  useEffect(() => {
+    if (conv) conv.addWords(teas.filter((t) => t.name_zh && t.name_ko).map((t) => [t.name_zh, t.name_zh_trad, t.name_ko]));
+  }, [conv, teas]);
+
+  const regionSearch = useMemo(() => (regions && conv ? buildRegionSearch(regions, conv) : []), [regions, conv]);
+
+  const filtered = useMemo(
+    () => teas.filter((t) => (cats.size === 0 || cats.has(t.category)) && matchesQuery(t, query, conv?.simplify.bind(conv))),
+    [teas, cats, query, conv],
+  );
+  const regionCode = focusCode ?? viewCode;
+  const inRegion = useMemo(() => teasInRegion(filtered, regionCode), [filtered, regionCode]);
+  const counts = useMemo(
+    () => categoryCounts(teasInRegion(teas.filter((t) => matchesQuery(t, query, conv?.simplify.bind(conv))), regionCode)),
+    [teas, query, regionCode, conv],
+  );
+
+  /** 지역으로 이동: 하위 지도가 있으면 그 지도로, 말단이면 상위 지도에서 선택 */
+  const goTo = useCallback(
+    (code: string) => {
+      if (!regions || code === CHINA || !regions[code]) {
+        setViewCode(CHINA);
+        setFocusCode(null);
+        return;
+      }
+      if (regions[code].k > 0) {
+        setViewCode(code);
+        setFocusCode(null);
+      } else {
+        setViewCode(regions[code].p ?? CHINA);
+        setFocusCode(code);
+      }
+    },
+    [regions],
+  );
+
+  const onRegionClick = (code: string, hasChildren: boolean) => {
+    if (hasChildren) goTo(code);
+    else setFocusCode((f) => (f === code ? null : code));
+  };
+
+  const crumbs = regions ? [CHINA, ...regionPath(regions, regionCode)] : [CHINA];
+  const parentOf = (code: string) => (code === CHINA ? null : (regions?.[code]?.p ?? CHINA));
+  const back = () => {
+    if (focusCode) setFocusCode(null);
+    else goTo(parentOf(viewCode) ?? CHINA);
+  };
+
+  const regionName = (code: string) => (code === CHINA ? "中国" : (regions?.[code]?.n ?? ""));
+  const curName = regionName(regionCode);
+  const detail = teas.find((t) => t.id === detailId) ?? null;
+  const admin = !!me?.admin;
+
+  const openNewTea = () => {
+    const origin = regionCode !== CHINA && regions && conv ? makeOrigin(regions, conv, regionCode) : null;
+    setForm({ open: true, tea: null, origins: origin ? [origin] : [] });
+  };
+
+  const onSaved = (saved: Tea) => {
+    setTeas((list) => (list.some((t) => t.id === saved.id) ? list.map((t) => (t.id === saved.id ? saved : t)) : [...list, saved]));
+  };
+
+  const onDelete = async (tea: Tea) => {
+    try {
+      await api.deleteTea(tea.id);
+      setTeas((list) => list.filter((t) => t.id !== tea.id));
+      setDetailId(null);
+      toast.success("삭제했습니다.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="paper-grain flex h-dvh flex-col overflow-hidden">
+      <Header
+        admin={admin}
+        me={me}
+        onLogin={() => setLoginOpen(true)}
+        onLogout={async () => {
+          await api.logout();
+          refreshMe();
+        }}
+        onAdd={openNewTea}
+      />
+
+      <main className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* 지도 */}
+        <section className="relative h-[52dvh] shrink-0 border-b lg:h-auto lg:flex-1 lg:border-r lg:border-b-0">
+          <ChinaMap
+            viewCode={viewCode}
+            focusCode={focusCode}
+            teas={filtered}
+            conv={conv}
+            highlightTeaId={hoverTeaId}
+            onRegionClick={onRegionClick}
+          />
+
+          <nav className="absolute top-3 right-3 left-3 flex items-center gap-1 lg:right-auto">
+            <AnimatePresence>
+              {regionCode !== CHINA && (
+                <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}>
+                  <Button size="icon-sm" variant="outline" className="bg-card/90 backdrop-blur" onClick={back} aria-label="뒤로">
+                    <ChevronLeft />
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+            <ol className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg border bg-card/90 px-2 py-1 text-sm shadow-sm backdrop-blur">
+              {crumbs.map((code, i) => (
+                <li key={code} className="flex shrink-0 items-center">
+                  {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
+                  <button
+                    onClick={() => (code === regionCode ? null : goTo(code))}
+                    className={cn("rounded px-1 font-zh hover:bg-muted", code === regionCode && "font-semibold text-primary")}
+                  >
+                    {regionName(code)}
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+
+          <Legend />
+        </section>
+
+        {/* 목록 */}
+        <aside className="flex min-h-0 flex-1 flex-col bg-background/60 lg:w-[420px] lg:flex-none">
+          <div className="space-y-3 border-b p-4">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={regionCode}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.2 }}
+              >
+                <div className="flex items-baseline gap-2">
+                  <h2 className="font-zh text-2xl font-bold">{curName}</h2>
+                  <span className="font-heading text-lg text-muted-foreground">
+                    {regionCode === CHINA ? "중국 전역" : conv?.toHangul(curName)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {loading ? "불러오는 중…" : `${inRegion.length}종의 차`}
+                  {regionCode === CHINA && " · 지도의 성(省)을 눌러 시·현 단위까지 들어가 보세요"}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="bg-card pl-8"
+                placeholder="차·지역 검색 (용정, 龍井, 龙井…)"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
+              <FilterChip active={cats.size === 0} onClick={() => setCats(new Set())}>
+                전체
+              </FilterChip>
+              {TEA_CATEGORIES.map((c) => {
+                const m = CATEGORY_META[c];
+                const active = cats.has(c);
+                return (
+                  <FilterChip
+                    key={c}
+                    active={active}
+                    color={m.color}
+                    soft={m.soft}
+                    onClick={() =>
+                      setCats((s) => {
+                        const n = new Set(s);
+                        if (n.has(c)) n.delete(c);
+                        else n.add(c);
+                        return n;
+                      })
+                    }
+                  >
+                    <span className="size-2 rounded-full" style={{ background: m.color }} />
+                    {m.ko.replace(/\(.*\)/, "")}
+                    <span className="opacity-60">{counts[c]}</span>
+                  </FilterChip>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {inRegion.length > 0 ? (
+              <motion.ul layout className="space-y-2">
+                <AnimatePresence initial={false} mode="popLayout">
+                  {inRegion.map((t) => (
+                    <TeaCard key={t.id} tea={t} onOpen={(x) => setDetailId(x.id)} onHover={setHoverTeaId} />
+                  ))}
+                </AnimatePresence>
+              </motion.ul>
+            ) : (
+              !loading && (
+                <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
+                  <span className="font-zh text-5xl text-border">茶</span>
+                  <p>{query || cats.size ? "조건에 맞는 차가 없습니다." : "이 지역에 등록된 차가 없습니다."}</p>
+                  {admin && (
+                    <Button size="sm" variant="outline" onClick={openNewTea}>
+                      <Plus /> 이 지역에 차 등록
+                    </Button>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+        </aside>
+      </main>
+
+      <TeaDetailDialog
+        tea={detail}
+        onOpenChange={(o) => !o && setDetailId(null)}
+        regions={regions}
+        admin={admin}
+        onEdit={(t) => {
+          setDetailId(null);
+          setForm({ open: true, tea: t });
+        }}
+        onDelete={onDelete}
+        onShowOrigin={(o) => {
+          setDetailId(null);
+          goTo(o.adcode);
+        }}
+      />
+      <TeaFormDialog
+        open={form.open}
+        onOpenChange={(open) => setForm((f) => ({ ...f, open }))}
+        tea={form.tea}
+        initialOrigins={form.origins}
+        conv={conv}
+        regions={regions}
+        regionSearch={regionSearch}
+        onSaved={onSaved}
+      />
+      <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} onLoggedIn={refreshMe} />
+    </div>
+  );
+}
+
+function Header({
+  admin,
+  me,
+  onLogin,
+  onLogout,
+  onAdd,
+}: {
+  admin: boolean;
+  me: Me | null;
+  onLogin: () => void;
+  onLogout: () => void;
+  onAdd: () => void;
+}) {
+  const { resolvedTheme, setTheme } = useTheme();
+  return (
+    <header className="flex items-center gap-3 border-b bg-card/70 px-4 py-2.5 backdrop-blur">
+      <motion.div
+        initial={{ rotate: -12, scale: 0.8, opacity: 0 }}
+        animate={{ rotate: -4, scale: 1, opacity: 1 }}
+        transition={{ type: "spring", stiffness: 260, damping: 18 }}
+        className="grid size-9 place-items-center rounded-md bg-seal font-zh text-xl font-bold text-white shadow-sm"
+      >
+        茶
+      </motion.div>
+      <div className="leading-tight">
+        <h1 className="font-heading text-lg font-bold">중국 차 지도</h1>
+        <p className="font-zh text-xs tracking-[0.3em] text-muted-foreground">中國茶地圖</p>
+      </div>
+
+      <div className="ml-auto flex items-center gap-1.5">
+        {me?.store === "local" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="hidden rounded-full border border-dashed px-2 py-0.5 text-[11px] text-muted-foreground sm:inline">
+                로컬 저장소
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Supabase 미설정 — .data/ 폴더에 저장 중</TooltipContent>
+          </Tooltip>
+        )}
+        {admin && (
+          <Button size="sm" onClick={onAdd}>
+            <Plus /> 차 등록
+          </Button>
+        )}
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="테마 전환"
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+        >
+          <Sun className="hidden dark:block" />
+          <Moon className="dark:hidden" />
+        </Button>
+        {!me?.authDisabled &&
+          (admin ? (
+            <Button size="icon-sm" variant="ghost" aria-label="로그아웃" onClick={onLogout}>
+              <LogOut />
+            </Button>
+          ) : (
+            <Button size="sm" variant="ghost" onClick={onLogin}>
+              <LogIn /> 관리자
+            </Button>
+          ))}
+      </div>
+    </header>
+  );
+}
+
+function FilterChip({
+  active,
+  color,
+  soft,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  color?: string;
+  soft?: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
+        active ? "border-transparent font-semibold" : "bg-card hover:bg-muted",
+        active && !color && "bg-primary text-primary-foreground",
+      )}
+      style={active && color ? { background: soft, color, boxShadow: `inset 0 0 0 1px ${color}` } : undefined}
+    >
+      {children}
+    </motion.button>
+  );
+}
+
+function Legend() {
+  return (
+    <div className="absolute bottom-3 left-3 hidden flex-col gap-1 rounded-lg border bg-card/90 px-3 py-2 text-xs shadow-sm backdrop-blur sm:flex">
+      <span className="mb-0.5 font-medium text-muted-foreground">6대 다류 · 六大茶類</span>
+      {TEA_CATEGORIES.map((c) => (
+        <span key={c} className="flex items-center gap-1.5">
+          <span className="size-2.5 rounded-full" style={{ background: CATEGORY_META[c].color }} />
+          <span className="font-zh">{CATEGORY_META[c].zh}</span>
+          <span className="text-muted-foreground">{CATEGORY_META[c].ko}</span>
+        </span>
+      ))}
+    </div>
+  );
+}

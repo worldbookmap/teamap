@@ -1,0 +1,50 @@
+"use client";
+
+import { motion } from "framer-motion";
+import { MapPin } from "lucide-react";
+import type { Tea } from "@/lib/types";
+import { CategoryBadge, TeaThumb } from "./tea-visual";
+
+export function TeaCard({
+  tea,
+  onOpen,
+  onHover,
+}: {
+  tea: Tea;
+  onOpen: (tea: Tea) => void;
+  onHover: (id: string | null) => void;
+}) {
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+    >
+      <button
+        onClick={() => onOpen(tea)}
+        onPointerEnter={() => onHover(tea.id)}
+        onPointerLeave={() => onHover(null)}
+        onFocus={() => onHover(tea.id)}
+        onBlur={() => onHover(null)}
+        className="group flex w-full gap-3 rounded-xl border bg-card p-2.5 text-left shadow-xs transition hover:-translate-y-px hover:border-primary/40 hover:shadow-md"
+      >
+        <TeaThumb tea={tea} className="size-16 shrink-0 rounded-lg text-[11px] transition group-hover:scale-[1.03]" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-baseline gap-2">
+            <span className="font-zh truncate text-lg font-semibold leading-tight">{tea.name_zh || tea.name_ko}</span>
+            <span className="truncate text-sm text-muted-foreground">{tea.name_ko}</span>
+          </div>
+          <CategoryBadge category={tea.category} />
+          {tea.origins.length > 0 && (
+            <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
+              <MapPin className="size-3 shrink-0" />
+              {tea.origins.map((o) => o.name_ko).join(" · ")}
+            </p>
+          )}
+        </div>
+      </button>
+    </motion.li>
+  );
+}
