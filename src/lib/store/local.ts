@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Tea, TeaInput } from "../types";
+import type { Tasting, TastingInput, Tea, TeaInput } from "../types";
 import { buildSeedTeas } from "./seed";
 import type { TeaStore } from "./types";
 
@@ -8,6 +8,7 @@ import type { TeaStore } from "./types";
 export const DATA_DIR = path.join(process.cwd(), ".data");
 export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 const DB_FILE = path.join(DATA_DIR, "teas.json");
+const TASTING_FILE = path.join(DATA_DIR, "tastings.json");
 
 let queue: Promise<unknown> = Promise.resolve();
 /** 파일 쓰기가 겹치지 않도록 순서대로 실행 */
@@ -35,11 +36,27 @@ async function readAll(): Promise<Tea[]> {
 }
 
 async function writeAll(teas: Tea[]) {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = `${DB_FILE}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(teas, null, 2));
-  await fs.rename(tmp, DB_FILE);
+  await writeJson(DB_FILE, teas);
 }
+
+async function writeJson(file: string, data: unknown) {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  const tmp = `${file}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify(data, null, 2));
+  await fs.rename(tmp, file);
+}
+
+async function readTastings(): Promise<Tasting[]> {
+  try {
+    return JSON.parse(await fs.readFile(TASTING_FILE, "utf8"));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw e;
+  }
+}
+
+const byDateDesc = (a: Tasting, b: Tasting) =>
+  b.tasted_on.localeCompare(a.tasted_on) || b.created_at.localeCompare(a.created_at);
 
 export const localStore: TeaStore = {
   kind: "local",
@@ -74,6 +91,43 @@ export const localStore: TeaStore = {
       const next = teas.filter((t) => t.id !== id);
       if (next.length === teas.length) return false;
       await writeAll(next);
+      const tastings = await readTastings();
+      const kept = tastings.filter((t) => t.tea_id !== id);
+      if (kept.length !== tastings.length) await writeJson(TASTING_FILE, kept);
+      return true;
+    }),
+
+  listTastings: (teaId) =>
+    serial(async () =>
+      (await readTastings()).filter((t) => !teaId || t.tea_id === teaId).sort(byDateDesc),
+    ),
+
+  createTasting: (input: TastingInput) =>
+    serial(async () => {
+      const list = await readTastings();
+      const now = new Date().toISOString();
+      const tasting: Tasting = { ...input, id: crypto.randomUUID(), created_at: now, updated_at: now };
+      list.push(tasting);
+      await writeJson(TASTING_FILE, list);
+      return tasting;
+    }),
+
+  updateTasting: (id, input) =>
+    serial(async () => {
+      const list = await readTastings();
+      const i = list.findIndex((t) => t.id === id);
+      if (i < 0) return null;
+      list[i] = { ...list[i], ...input, id, updated_at: new Date().toISOString() };
+      await writeJson(TASTING_FILE, list);
+      return list[i];
+    }),
+
+  removeTasting: (id) =>
+    serial(async () => {
+      const list = await readTastings();
+      const next = list.filter((t) => t.id !== id);
+      if (next.length === list.length) return false;
+      await writeJson(TASTING_FILE, next);
       return true;
     }),
 

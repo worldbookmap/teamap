@@ -1,4 +1,4 @@
-import { TEA_CATEGORIES, type TeaCategory, type TeaInput, type TeaOrigin } from "./types";
+import { TEA_CATEGORIES, type TastingInput, type TeaCategory, type TeaInput, type TeaOrigin } from "./types";
 
 const str = (v: unknown, max = 5000) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
@@ -43,6 +43,59 @@ export function parseTeaInput(body: unknown, partial = false): { ok: true; value
     out.description ??= "";
     out.images ??= [];
     out.origins ??= [];
+  }
+  return { ok: true, value: out };
+}
+
+const TASTING_TEXT = ["amount", "shop", "vintage", "brewing", "aroma", "taste", "note"] as const;
+
+/** 마신 기록 요청 본문 정리. partial=true 면 넘어온 필드만 */
+export function parseTastingInput(
+  body: unknown,
+  partial = false,
+): { ok: true; value: Partial<TastingInput> } | { ok: false; error: string } {
+  if (!body || typeof body !== "object") return { ok: false, error: "잘못된 요청입니다." };
+  const b = body as Record<string, unknown>;
+  const out: Partial<TastingInput> = {};
+
+  if ("tea_id" in b) out.tea_id = str(b.tea_id, 64);
+  if ("tasted_on" in b) {
+    const d = str(b.tasted_on, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d))) return { ok: false, error: "마신 날짜를 확인해 주세요." };
+    out.tasted_on = d;
+  }
+  if ("rating" in b) {
+    if (b.rating == null || b.rating === "") out.rating = null;
+    else {
+      const r = Math.round(Number(b.rating) * 2) / 2;
+      if (!(r >= 0.5 && r <= 5)) return { ok: false, error: "평점은 0.5 ~ 5 사이여야 합니다." };
+      out.rating = r;
+    }
+  }
+  if ("price" in b) {
+    if (b.price == null || b.price === "") out.price = null;
+    else {
+      const p = Math.round(Number(String(b.price).replace(/[^\d.]/g, "")));
+      if (!Number.isFinite(p) || p < 0 || p > 2_000_000_000) return { ok: false, error: "가격을 확인해 주세요." };
+      out.price = p;
+    }
+  }
+  for (const key of TASTING_TEXT) if (key in b) out[key] = str(b[key], key === "note" ? 20000 : 2000);
+  if ("photos" in b) {
+    out.photos = Array.isArray(b.photos)
+      ? b.photos.map((u) => str(u, 2000)).filter((u) => /^(https?:\/\/|\/api\/uploads\/)/.test(u))
+      : [];
+  }
+
+  if (!partial) {
+    if (!out.tea_id) return { ok: false, error: "어떤 차의 기록인지 알 수 없습니다." };
+    out.tasted_on ??= new Date().toISOString().slice(0, 10);
+    out.rating ??= null;
+    out.price ??= null;
+    for (const key of TASTING_TEXT) out[key] ??= "";
+    out.photos ??= [];
+  } else {
+    delete out.tea_id; // 다른 차로 옮기지 않음
   }
   return { ok: true, value: out };
 }

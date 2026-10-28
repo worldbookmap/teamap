@@ -1,4 +1,4 @@
-import type { Tea, TeaInput } from "./types";
+import type { Tasting, TastingInput, Tea, TeaInput } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -24,6 +24,11 @@ export const api = {
     files.forEach((f) => form.append("file", f));
     return request<{ urls: string[] }>("/api/upload", { method: "POST", body: form });
   },
+  listTastings: (teaId?: string) =>
+    request<Tasting[]>(`/api/tastings${teaId ? `?tea_id=${encodeURIComponent(teaId)}` : ""}`, { cache: "no-store" }),
+  createTasting: (input: TastingInput) => request<Tasting>("/api/tastings", json("POST", input)),
+  updateTasting: (id: string, input: Partial<TastingInput>) => request<Tasting>(`/api/tastings/${id}`, json("PATCH", input)),
+  deleteTasting: (id: string) => request<void>(`/api/tastings/${id}`, { method: "DELETE" }),
   me: () => request<{ admin: boolean; authDisabled: boolean; store: "local" | "supabase" }>("/api/auth/me", { cache: "no-store" }),
   login: (password: string) => request<{ admin: boolean }>("/api/auth/login", json("POST", { password })),
   logout: () => request<{ admin: boolean }>("/api/auth/logout", { method: "POST" }),

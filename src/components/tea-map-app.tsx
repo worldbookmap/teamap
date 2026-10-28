@@ -1,14 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, LogIn, LogOut, Moon, Plus, Search, Sun } from "lucide-react";
+import { ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ChinaMap } from "@/components/map/china-map";
 import { LoginDialog } from "@/components/login-dialog";
 import { TeaCard } from "@/components/tea/tea-card";
-import { TeaDetailDialog } from "@/components/tea/tea-detail-dialog";
+import { TastingFormDialog } from "@/components/tasting/tasting-form-dialog";
+import { tastingSummary } from "@/components/tasting/tasting-list";
+import { TastingTimelineSheet } from "@/components/tasting/tasting-timeline-sheet";
+import { TeaDetailDialog, type DetailTab } from "@/components/tea/tea-detail-dialog";
 import { TeaFormDialog } from "@/components/tea/tea-form-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +21,7 @@ import { api } from "@/lib/api";
 import { CATEGORY_META } from "@/lib/categories";
 import { buildRegionSearch, CHINA, makeOrigin, regionPath } from "@/lib/regions";
 import { categoryCounts, matchesQuery, teasInRegion } from "@/lib/tea-utils";
-import { TEA_CATEGORIES, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
+import { TEA_CATEGORIES, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Me = Awaited<ReturnType<typeof api.me>>;
@@ -42,6 +45,14 @@ export function TeaMapApp() {
   const [form, setForm] = useState<{ open: boolean; tea?: Tea | null; origins?: TeaOrigin[] }>({ open: false });
   const [loginOpen, setLoginOpen] = useState(false);
 
+  // 마신 기록
+  const [tastings, setTastings] = useState<Tasting[]>([]);
+  const [tastingError, setTastingError] = useState<string | null>(null);
+  const [detailTab, setDetailTab] = useState<DetailTab>("info");
+  const [tastingForm, setTastingForm] = useState<{ open: boolean; tasting?: Tasting | null }>({ open: false });
+  const [timelineOpen, setTimelineOpen] = useState(false);
+  const [drunkOnly, setDrunkOnly] = useState(false);
+
   const refreshMe = useCallback(() => api.me().then(setMe).catch(() => setMe(null)), []);
 
   useEffect(() => {
@@ -50,8 +61,22 @@ export function TeaMapApp() {
       .then(setTeas)
       .catch((e) => toast.error(`차 목록을 불러오지 못했습니다: ${e.message}`))
       .finally(() => setLoading(false));
+    api
+      .listTastings()
+      .then(setTastings)
+      .catch((e) => setTastingError(e.message));
     refreshMe();
   }, [refreshMe]);
+
+  const byTea = useMemo(() => {
+    const m = new Map<string, Tasting[]>();
+    for (const t of tastings) m.set(t.tea_id, [...(m.get(t.tea_id) ?? []), t]);
+    return m;
+  }, [tastings]);
+  const summaries = useMemo(
+    () => new Map([...byTea.entries()].map(([id, list]) => [id, tastingSummary(list)])),
+    [byTea],
+  );
 
   // 등록된 차 이름도 한글→한자 사전에 넣어 둡니다
   useEffect(() => {
@@ -61,8 +86,14 @@ export function TeaMapApp() {
   const regionSearch = useMemo(() => (regions && conv ? buildRegionSearch(regions, conv) : []), [regions, conv]);
 
   const filtered = useMemo(
-    () => teas.filter((t) => (cats.size === 0 || cats.has(t.category)) && matchesQuery(t, query, conv?.simplify.bind(conv))),
-    [teas, cats, query, conv],
+    () =>
+      teas.filter(
+        (t) =>
+          (cats.size === 0 || cats.has(t.category)) &&
+          (!drunkOnly || byTea.has(t.id)) &&
+          matchesQuery(t, query, conv?.simplify.bind(conv)),
+      ),
+    [teas, cats, query, conv, drunkOnly, byTea],
   );
   const regionCode = focusCode ?? viewCode;
   const inRegion = useMemo(() => teasInRegion(filtered, regionCode), [filtered, regionCode]);
@@ -120,6 +151,7 @@ export function TeaMapApp() {
     try {
       await api.deleteTea(tea.id);
       setTeas((list) => list.filter((t) => t.id !== tea.id));
+      setTastings((list) => list.filter((t) => t.tea_id !== tea.id));
       setDetailId(null);
       toast.success("삭제했습니다.");
     } catch (e) {
@@ -138,6 +170,8 @@ export function TeaMapApp() {
           refreshMe();
         }}
         onAdd={openNewTea}
+        drunkCount={tastings.length}
+        onTimeline={() => setTimelineOpen(true)}
       />
 
       <main className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -215,6 +249,16 @@ export function TeaMapApp() {
             </div>
 
             <div className="flex flex-wrap gap-1.5">
+              <FilterChip
+                active={drunkOnly}
+                color="var(--seal)"
+                soft="color-mix(in oklch, var(--seal) 12%, transparent)"
+                onClick={() => setDrunkOnly((v) => !v)}
+              >
+                <CupSoda className="size-3" />
+                마신 차
+                <span className="opacity-60">{teasInRegion(teas, regionCode).filter((t) => byTea.has(t.id)).length}</span>
+              </FilterChip>
               <FilterChip active={cats.size === 0} onClick={() => setCats(new Set())}>
                 전체
               </FilterChip>
@@ -251,7 +295,16 @@ export function TeaMapApp() {
               <motion.ul layout className="space-y-2">
                 <AnimatePresence initial={false} mode="popLayout">
                   {inRegion.map((t) => (
-                    <TeaCard key={t.id} tea={t} onOpen={(x) => setDetailId(x.id)} onHover={setHoverTeaId} />
+                    <TeaCard
+                      key={t.id}
+                      tea={t}
+                      drunk={summaries.get(t.id)}
+                      onOpen={(x) => {
+                        setDetailTab("info");
+                        setDetailId(x.id);
+                      }}
+                      onHover={setHoverTeaId}
+                    />
                   ))}
                 </AnimatePresence>
               </motion.ul>
@@ -259,7 +312,7 @@ export function TeaMapApp() {
               !loading && (
                 <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
                   <span className="font-zh text-5xl text-border">茶</span>
-                  <p>{query || cats.size ? "조건에 맞는 차가 없습니다." : "이 지역에 등록된 차가 없습니다."}</p>
+                  <p>{query || cats.size || drunkOnly ? "조건에 맞는 차가 없습니다." : "이 지역에 등록된 차가 없습니다."}</p>
                   {admin && (
                     <Button size="sm" variant="outline" onClick={openNewTea}>
                       <Plus /> 이 지역에 차 등록
@@ -282,6 +335,23 @@ export function TeaMapApp() {
           setForm({ open: true, tea: t });
         }}
         onDelete={onDelete}
+        tasting={{
+          tastings: detail ? (byTea.get(detail.id) ?? []) : [],
+          error: tastingError,
+          tab: detailTab,
+          onTabChange: setDetailTab,
+          onAdd: () => setTastingForm({ open: true, tasting: null }),
+          onEdit: (t) => setTastingForm({ open: true, tasting: t }),
+          onDelete: async (t) => {
+            try {
+              await api.deleteTasting(t.id);
+              setTastings((list) => list.filter((x) => x.id !== t.id));
+              toast.success("기록을 삭제했습니다.");
+            } catch (e) {
+              toast.error((e as Error).message);
+            }
+          },
+        }}
         onShowOrigin={(o) => {
           setDetailId(null);
           goTo(o.adcode);
@@ -297,6 +367,31 @@ export function TeaMapApp() {
         regionSearch={regionSearch}
         onSaved={onSaved}
       />
+      <TastingFormDialog
+        tea={detail}
+        tasting={tastingForm.tasting}
+        open={tastingForm.open}
+        onOpenChange={(open) => setTastingForm((f) => ({ ...f, open }))}
+        onSaved={(saved) =>
+          setTastings((list) =>
+            [saved, ...list.filter((t) => t.id !== saved.id)].sort(
+              (a, b) => b.tasted_on.localeCompare(a.tasted_on) || b.created_at.localeCompare(a.created_at),
+            ),
+          )
+        }
+      />
+      <TastingTimelineSheet
+        open={timelineOpen}
+        onOpenChange={setTimelineOpen}
+        tastings={tastings}
+        teas={teas}
+        error={tastingError}
+        onOpenTea={(id) => {
+          setTimelineOpen(false);
+          setDetailTab("tastings");
+          setDetailId(id);
+        }}
+      />
       <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} onLoggedIn={refreshMe} />
     </div>
   );
@@ -308,12 +403,16 @@ function Header({
   onLogin,
   onLogout,
   onAdd,
+  drunkCount,
+  onTimeline,
 }: {
   admin: boolean;
   me: Me | null;
   onLogin: () => void;
   onLogout: () => void;
   onAdd: () => void;
+  drunkCount: number;
+  onTimeline: () => void;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   return (
@@ -344,6 +443,10 @@ function Header({
             <TooltipContent>Supabase 미설정 — .data/ 폴더에 저장 중</TooltipContent>
           </Tooltip>
         )}
+        <Button size="sm" variant="outline" onClick={onTimeline}>
+          <CupSoda /> <span className="hidden sm:inline">마신 기록</span>
+          {drunkCount > 0 && <span className="text-seal">{drunkCount}</span>}
+        </Button>
         {admin && (
           <Button size="sm" onClick={onAdd}>
             <Plus /> 차 등록

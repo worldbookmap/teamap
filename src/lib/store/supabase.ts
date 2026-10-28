@@ -1,10 +1,12 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { Tea, TeaInput } from "../types";
+import type { Tasting, TastingInput, Tea, TeaInput } from "../types";
 import { extOf } from "./local";
-import type { TeaStore } from "./types";
+import { MissingTableError, type TeaStore } from "./types";
 
 export const IMAGE_BUCKET = "tea-images";
 const TABLE = "teas";
+const TASTINGS = "tastings";
+const TASTINGS_MIGRATION = "supabase/migrations/20261028010000_tastings.sql";
 
 let client: SupabaseClient | null = null;
 
@@ -16,10 +18,16 @@ function db() {
   return client;
 }
 
-function check<T>({ data, error }: { data: T; error: { message: string } | null }): T {
+function check<T>({ data, error }: { data: T; error: { message: string; code?: string } | null }): T {
+  if (error?.code === "PGRST205" && error.message.includes(TASTINGS)) {
+    throw new MissingTableError(TASTINGS, TASTINGS_MIGRATION);
+  }
   if (error) throw new Error(error.message);
   return data;
 }
+
+/** numeric 컬럼은 문자열로 올 수 있어 숫자로 맞춥니다 */
+const normTasting = (t: Tasting): Tasting => ({ ...t, rating: t.rating == null ? null : Number(t.rating) });
 
 export const supabaseStore: TeaStore = {
   kind: "supabase",
@@ -49,6 +57,33 @@ export const supabaseStore: TeaStore = {
 
   async remove(id) {
     const rows = check(await db().from(TABLE).delete().eq("id", id).select("id")) as { id: string }[];
+    return rows.length > 0;
+  },
+
+  async listTastings(teaId) {
+    let q = db().from(TASTINGS).select("*");
+    if (teaId) q = q.eq("tea_id", teaId);
+    const rows = check(await q.order("tasted_on", { ascending: false }).order("created_at", { ascending: false })) as Tasting[];
+    return rows.map(normTasting);
+  },
+
+  async createTasting(input: TastingInput) {
+    return normTasting(check(await db().from(TASTINGS).insert(input).select().single()) as Tasting);
+  },
+
+  async updateTasting(id, input) {
+    const rows = check(
+      await db()
+        .from(TASTINGS)
+        .update({ ...input, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .select(),
+    ) as Tasting[];
+    return rows[0] ? normTasting(rows[0]) : null;
+  },
+
+  async removeTasting(id) {
+    const rows = check(await db().from(TASTINGS).delete().eq("id", id).select("id")) as { id: string }[];
     return rows.length > 0;
   },
 

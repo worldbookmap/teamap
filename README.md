@@ -28,6 +28,7 @@ Supabase 설정이 없으면 자동으로 **로컬 파일 저장소**(`.data/tea
 | 한글 → 한자 | 한글로 쓰고 「한글 → 한자」를 누르면 사전 단어·지명을 찾아 바꾸고, 음절마다 다른 한자 후보를 고를 수 있음 |
 | 지역 검색 | `항주`, `杭州`, `杭州市`, `무이산` 처럼 한글·간체·번체 아무거나로 검색 |
 | 설명 독음 달기 | 설명 속 한자를 `암운(岩韻)` 형식으로 바꿔 줌 |
+| 마신 기록 | 차 상세의 「마신 기록」 탭에서 날짜·별점(0.5 단위)·사진·가격/양·구매처·생산 연도·우림 정보·향·맛·메모를 남김. 상단 「마신 기록」에서 전체 기록을 월별로, 목록에서 「마신 차」만 걸러 보기 |
 
 ## 환경 변수 (`.env.local`)
 
@@ -42,8 +43,9 @@ Supabase 설정이 없으면 자동으로 **로컬 파일 저장소**(`.data/tea
 
 ## Supabase + Vercel 배포
 
-1. **Supabase 프로젝트 생성** 후 SQL Editor 에서 `supabase/migrations/20261028000000_init.sql` 실행
-   (테이블 `teas`, 공개 읽기 RLS, 이미지 버킷 `tea-images` 생성)
+1. **Supabase 프로젝트 생성** 후 SQL Editor 에서 `supabase/migrations/` 의 SQL 을 순서대로 실행
+   - `20261028000000_init.sql` — 테이블 `teas`, 공개 읽기 RLS, 이미지 버킷 `tea-images`
+   - `20261028010000_tastings.sql` — 마신 기록 테이블 `tastings`
 2. `.env.local` 에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력
 3. 데이터 넣기 — 둘 중 하나
    - 로컬에서 입력한 데이터를 그대로 옮기기: `npm run migrate:supabase` (사진도 Storage 로 업로드)

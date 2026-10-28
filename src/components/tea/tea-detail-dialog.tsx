@@ -4,12 +4,27 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, MapPin, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { TastingList } from "@/components/tasting/tasting-list";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORY_META } from "@/lib/categories";
 import type { RegionIndex } from "@/lib/regions";
-import type { Tea, TeaOrigin } from "@/lib/types";
+import type { Tasting, Tea, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CategoryBadge, TeaSeal } from "./tea-visual";
+
+export type DetailTab = "info" | "tastings";
+
+/** 상세 창의 「마신 기록」 탭에 필요한 것들 */
+export interface TastingPanel {
+  tastings: Tasting[];
+  error: string | null;
+  tab: DetailTab;
+  onTabChange: (tab: DetailTab) => void;
+  onAdd: () => void;
+  onEdit: (t: Tasting) => void;
+  onDelete: (t: Tasting) => void;
+}
 
 export function TeaDetailDialog({
   tea,
@@ -19,6 +34,7 @@ export function TeaDetailDialog({
   onEdit,
   onDelete,
   onShowOrigin,
+  tasting,
 }: {
   tea: Tea | null;
   onOpenChange: (open: boolean) => void;
@@ -27,6 +43,7 @@ export function TeaDetailDialog({
   onEdit: (tea: Tea) => void;
   onDelete: (tea: Tea) => void;
   onShowOrigin: (origin: TeaOrigin) => void;
+  tasting: TastingPanel;
 }) {
   return (
     <Dialog open={!!tea} onOpenChange={onOpenChange}>
@@ -40,6 +57,7 @@ export function TeaDetailDialog({
             onEdit={onEdit}
             onDelete={onDelete}
             onShowOrigin={onShowOrigin}
+            tasting={tasting}
           />
         )}
       </DialogContent>
@@ -54,6 +72,7 @@ function TeaDetail({
   onEdit,
   onDelete,
   onShowOrigin,
+  tasting,
 }: {
   tea: Tea;
   regions: RegionIndex | null;
@@ -61,6 +80,7 @@ function TeaDetail({
   onEdit: (tea: Tea) => void;
   onDelete: (tea: Tea) => void;
   onShowOrigin: (origin: TeaOrigin) => void;
+  tasting: TastingPanel;
 }) {
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState(1);
@@ -146,68 +166,90 @@ function TeaDetail({
           <DialogDescription className="font-heading text-lg text-foreground">{tea.name_ko}</DialogDescription>
         </div>
 
-        {tea.origins.length > 0 && (
-          <div className="space-y-1.5">
-            <h3 className="text-xs font-medium tracking-wider text-muted-foreground">산지 · 産地</h3>
-            <ul className="flex flex-wrap gap-1.5">
-              {tea.origins.map((o) => (
-                <li key={o.adcode}>
-                  <button
-                    onClick={() => onShowOrigin(o)}
-                    className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm transition hover:border-primary hover:bg-secondary"
-                  >
-                    <MapPin className="size-3.5 text-seal" />
-                    <span className="text-muted-foreground">
-                      {o.path
-                        .slice(0, -1)
-                        .map((c) => regions?.[c]?.n)
-                        .filter(Boolean)
-                        .join(" ")}
-                    </span>
-                    <span className="font-zh font-medium">{o.name_zh}</span>
-                    <span>{o.name_ko}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <Tabs value={tasting.tab} onValueChange={(v) => tasting.onTabChange(v as DetailTab)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="info">차 정보</TabsTrigger>
+            <TabsTrigger value="tastings">
+              마신 기록{tasting.tastings.length > 0 && <span className="text-primary">{tasting.tastings.length}</span>}
+            </TabsTrigger>
+          </TabsList>
 
-        {tea.description && (
-          <p className="whitespace-pre-line leading-7 text-foreground/90">{tea.description}</p>
-        )}
+          <TabsContent value="tastings" className="pt-3">
+            <TastingList
+              tastings={tasting.tastings}
+              admin={admin}
+              error={tasting.error}
+              onAdd={tasting.onAdd}
+              onEdit={tasting.onEdit}
+              onDelete={tasting.onDelete}
+            />
+          </TabsContent>
 
-        <div className="rounded-lg p-3 text-xs leading-5" style={{ background: meta.soft, color: meta.color }}>
-          <b>
-            {meta.ko} {meta.hanja}
-          </b>{" "}
-          — {meta.desc}
-        </div>
-
-        {admin && (
-          <div className="flex justify-end gap-2 border-t pt-4">
-            {confirming ? (
-              <>
-                <span className="mr-auto self-center text-sm text-destructive">정말 삭제할까요?</span>
-                <Button variant="ghost" onClick={() => setConfirming(false)}>
-                  취소
-                </Button>
-                <Button variant="destructive" onClick={() => onDelete(tea)}>
-                  <Trash2 /> 삭제
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button variant="ghost" className="text-destructive" onClick={() => setConfirming(true)}>
-                  <Trash2 /> 삭제
-                </Button>
-                <Button onClick={() => onEdit(tea)}>
-                  <Pencil /> 수정
-                </Button>
-              </>
+          <TabsContent value="info" className="space-y-5 pt-3">
+            {tea.origins.length > 0 && (
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-medium tracking-wider text-muted-foreground">산지 · 産地</h3>
+                <ul className="flex flex-wrap gap-1.5">
+                  {tea.origins.map((o) => (
+                    <li key={o.adcode}>
+                      <button
+                        onClick={() => onShowOrigin(o)}
+                        className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm transition hover:border-primary hover:bg-secondary"
+                      >
+                        <MapPin className="size-3.5 text-seal" />
+                        <span className="text-muted-foreground">
+                          {o.path
+                            .slice(0, -1)
+                            .map((c) => regions?.[c]?.n)
+                            .filter(Boolean)
+                            .join(" ")}
+                        </span>
+                        <span className="font-zh font-medium">{o.name_zh}</span>
+                        <span>{o.name_ko}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
-          </div>
-        )}
+
+            {tea.description && (
+              <p className="whitespace-pre-line leading-7 text-foreground/90">{tea.description}</p>
+            )}
+
+            <div className="rounded-lg p-3 text-xs leading-5" style={{ background: meta.soft, color: meta.color }}>
+              <b>
+                {meta.ko} {meta.hanja}
+              </b>{" "}
+              — {meta.desc}
+            </div>
+
+            {admin && (
+              <div className="flex justify-end gap-2 border-t pt-4">
+                {confirming ? (
+                  <>
+                    <span className="mr-auto self-center text-sm text-destructive">정말 삭제할까요?</span>
+                    <Button variant="ghost" onClick={() => setConfirming(false)}>
+                      취소
+                    </Button>
+                    <Button variant="destructive" onClick={() => onDelete(tea)}>
+                      <Trash2 /> 삭제
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="ghost" className="text-destructive" onClick={() => setConfirming(true)}>
+                      <Trash2 /> 삭제
+                    </Button>
+                    <Button onClick={() => onEdit(tea)}>
+                      <Pencil /> 수정
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { MapPin } from "lucide-react";
+import { CupSoda, MapPin } from "lucide-react";
+import { Stars } from "@/components/tasting/star-rating";
 import type { Tea } from "@/lib/types";
 import { CategoryBadge, TeaThumb } from "./tea-visual";
 
@@ -9,8 +10,11 @@ export function TeaCard({
   tea,
   onOpen,
   onHover,
+  drunk,
 }: {
   tea: Tea;
+  /** 마신 횟수와 평균 별점 */
+  drunk?: { count: number; avg: number | null };
   onOpen: (tea: Tea) => void;
   onHover: (id: string | null) => void;
 }) {
@@ -36,7 +40,15 @@ export function TeaCard({
             <span className="font-zh truncate text-lg font-semibold leading-tight">{tea.name_zh || tea.name_ko}</span>
             <span className="truncate text-sm text-muted-foreground">{tea.name_ko}</span>
           </div>
-          <CategoryBadge category={tea.category} />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <CategoryBadge category={tea.category} />
+            {drunk && drunk.count > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-seal/10 px-2 py-0.5 text-[11px] font-medium text-seal">
+                <CupSoda className="size-3" /> {drunk.count}번
+                {drunk.avg != null && <Stars value={Math.round(drunk.avg * 2) / 2} size="size-2.5" className="ml-0.5" />}
+              </span>
+            )}
+          </div>
           {tea.origins.length > 0 && (
             <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
               <MapPin className="size-3 shrink-0" />
