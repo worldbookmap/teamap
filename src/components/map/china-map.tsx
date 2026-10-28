@@ -25,6 +25,8 @@ interface Props {
   /** 바뀌면 확대·이동을 처음 상태로 */
   resetKey?: number;
   onRegionClick: (adcode: string, hasChildren: boolean) => void;
+  /** 더 나눌 수 없는 구역(현·구)을 길게 눌렀을 때 그 위치 (없으면 길게 누르기 꺼짐) */
+  onLongPress?: (adcode: string, lngLat: [number, number]) => void;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
@@ -60,7 +62,9 @@ function useSize<T extends HTMLElement>() {
   return [ref, size] as const;
 }
 
-export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, resetKey, onRegionClick }: Props) {
+const LONG_PRESS_MS = 650;
+
+export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, resetKey, onRegionClick, onLongPress }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -199,6 +203,31 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
     select(svgEl).transition().duration(600).call(zoomRef.current.transform, t);
   }, [focusCode, svgEl, path, features, width, height, viewCode]);
 
+  // 길게 누르기: 누른 채 거의 움직이지 않으면 LONG_PRESS_MS 뒤에 실행 (끌면 지도 이동으로 취소)
+  const [pressing, setPressing] = useState<{ x: number; y: number } | null>(null);
+  const press = useRef<{ timer: number; x: number; y: number; fired: boolean } | null>(null);
+  const cancelPress = () => {
+    if (press.current) window.clearTimeout(press.current.timer);
+    press.current = press.current?.fired ? press.current : null;
+    setPressing(null);
+  };
+  const startPress = (e: React.PointerEvent<SVGPathElement>, code: string) => {
+    if (!onLongPress || !projection || e.button !== 0) return;
+    const rect = e.currentTarget.ownerSVGElement!.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const timer = window.setTimeout(() => {
+      const ll = projection.invert?.(transform.invert([x, y]));
+      setPressing(null);
+      if (!ll || !press.current) return;
+      press.current.fired = true;
+      navigator.vibrate?.(15);
+      onLongPress(code, [ll[0], ll[1]]);
+    }, LONG_PRESS_MS);
+    press.current = { timer, x: e.clientX, y: e.clientY, fired: false };
+    setPressing({ x, y });
+  };
+
   const k = transform.k;
   const hovered = hover ? shapesData.find((s) => s.f.properties.adcode === hover.code) : null;
   const hoveredTeas = hover ? (regionTeas.get(hover.code) ?? []) : [];
@@ -217,7 +246,13 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 1.06, filter: "blur(4px)" }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            onPointerLeave={() => setHover(null)}
+            onPointerLeave={() => {
+              setHover(null);
+              cancelPress();
+            }}
+            onPointerUp={cancelPress}
+            onPointerCancel={cancelPress}
+            onContextMenu={(e) => onLongPress && e.preventDefault()}
           >
             <defs>
               <filter id="land-shadow" x="-10%" y="-10%" width="120%" height="120%">
@@ -259,8 +294,18 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
                         if (decorative) return;
                         const rect = e.currentTarget.ownerSVGElement!.getBoundingClientRect();
                         setHover({ code, x: e.clientX - rect.left, y: e.clientY - rect.top });
+                        const p = press.current;
+                        if (p && !p.fired && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) cancelPress();
                       }}
-                      onClick={() => !decorative && onRegionClick(code, f.properties.childrenNum > 0)}
+                      onPointerDown={(e) => !decorative && f.properties.childrenNum === 0 && startPress(e, code)}
+                      onClick={() => {
+                        // 길게 누른 뒤 손을 뗄 때 생기는 클릭은 무시
+                        if (press.current?.fired) {
+                          press.current = null;
+                          return;
+                        }
+                        if (!decorative) onRegionClick(code, f.properties.childrenNum > 0);
+                      }}
                     />
                   );
                 })}
@@ -334,7 +379,7 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
               {/* 세부 산지 핀 */}
               {pins.map((p) => (
                 <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y}) scale(${1 / k})`}>
-                  <title>{`${p.zh} ${p.ko}\n${p.teas.map((t) => t.name_zh || t.name_ko).join(", ")}`}</title>
+                  <title>{`${p.zh || p.ko || "이름 없는 위치"}\n${p.teas.map((t) => t.name_zh || t.name_ko).join(", ")}`}</title>
                   <motion.path
                     d="M0 0 C -5 -7 -6.5 -10 -6.5 -13 A 6.5 6.5 0 1 1 6.5 -13 C 6.5 -10 5 -7 0 0 Z"
                     initial={{ scale: 0, y: -6 }}
@@ -357,6 +402,25 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
                 </g>
               ))}
             </g>
+
+            {/* 길게 누르는 중: 링이 차오름 */}
+            {pressing && (
+              <g transform={`translate(${pressing.x},${pressing.y})`} pointerEvents="none">
+                <circle r={20} fill="none" stroke="var(--seal)" strokeOpacity={0.25} strokeWidth={4} />
+                <motion.circle
+                  r={20}
+                  fill="none"
+                  stroke="var(--seal)"
+                  strokeWidth={4}
+                  strokeLinecap="round"
+                  transform="rotate(-90)"
+                  initial={{ pathLength: 0 }}
+                  animate={{ pathLength: 1 }}
+                  transition={{ duration: LONG_PRESS_MS / 1000, ease: "linear" }}
+                />
+                <circle r={3} fill="var(--seal)" />
+              </g>
+            )}
           </motion.svg>
         )}
       </AnimatePresence>
@@ -401,6 +465,12 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
           </motion.div>
         )}
       </AnimatePresence>
+
+      {onLongPress && features.some((f) => f.properties.childrenNum === 0 && !f.properties.adcode.includes("_")) && (
+        <div className="pointer-events-none absolute bottom-3 left-1/2 hidden -translate-x-1/2 rounded-full border bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur sm:block">
+          현·구를 <b className="text-foreground">길게 누르면</b> 그 위치에 새 차를 등록해요
+        </div>
+      )}
 
       {selfTeas.length > 0 && (
         <div className="absolute left-3 top-3 rounded-full border bg-card/90 px-3 py-1 text-xs shadow-sm backdrop-blur">

@@ -299,7 +299,7 @@ function TeaDetail({
                           <>
                             <span className="text-muted-foreground">›</span>
                             <span className="font-zh font-medium">{o.detail.name_zh}</span>
-                            <span>{o.detail.name_ko}</span>
+                            <span>{o.detail.name_ko || (!o.detail.name_zh && "📍")}</span>
                           </>
                         )}
                       </button>

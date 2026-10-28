@@ -37,6 +37,7 @@ export function TeaFormDialog({
   tea,
   parent,
   initialOrigins,
+  editFirstOriginDetail,
   conv,
   regions,
   regionSearch,
@@ -48,6 +49,8 @@ export function TeaFormDialog({
   /** 제품을 등록·수정할 때의 상위 차 */
   parent?: Tea | null;
   initialOrigins?: TeaOrigin[];
+  /** 열자마자 첫 산지의 세부 산지 편집 열기 */
+  editFirstOriginDetail?: boolean;
   conv: HanjaConverter | null;
   regions: RegionIndex | null;
   regionSearch: RegionSearchItem[];
@@ -62,6 +65,7 @@ export function TeaFormDialog({
             tea={tea}
             parent={parent}
             initialOrigins={initialOrigins}
+            editFirstOriginDetail={editFirstOriginDetail}
             conv={conv}
             regions={regions}
             regionSearch={regionSearch}
@@ -81,6 +85,7 @@ function TeaForm({
   tea,
   parent,
   initialOrigins,
+  editFirstOriginDetail,
   conv,
   regions,
   regionSearch,
@@ -90,6 +95,7 @@ function TeaForm({
   tea?: Tea | null;
   parent?: Tea | null;
   initialOrigins?: TeaOrigin[];
+  editFirstOriginDetail?: boolean;
   conv: HanjaConverter | null;
   regions: RegionIndex | null;
   regionSearch: RegionSearchItem[];
@@ -197,6 +203,7 @@ function TeaForm({
             regions={regions}
             search={regionSearch}
             conv={conv}
+            autoEditFirst={editFirstOriginDetail}
           />
         ) : (
           <Loader2 className="size-4 animate-spin" />

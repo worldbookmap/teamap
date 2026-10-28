@@ -105,12 +105,12 @@ function DetailForm({
 
   const parentCode = regions[origin.adcode]?.p ?? null;
   const save = () => {
-    if (!zh.trim() && !ko.trim()) return onSave(null);
+    if (!zh.trim() && !ko.trim() && !pos) return onSave(null);
     onSave({
       kind: town ? "town" : "place",
       ...(town ? { code: town } : {}),
       name_zh: conv.simplify(zh.trim()),
-      name_ko: ko.trim() || conv.toHangul(zh.trim()),
+      name_ko: ko.trim() || (zh.trim() ? conv.toHangul(zh.trim()) : ""),
       ...(pos ? { lng: pos.lng, lat: pos.lat } : {}),
     });
   };
@@ -122,6 +122,7 @@ function DetailForm({
         <DialogDescription>
           <span className="font-zh text-foreground">{origin.name_zh}</span> {origin.name_ko} 안의 향·진을 고르거나, 차산·마을
           이름을 직접 입력하세요.
+          {pos && !init?.name_zh && !init?.name_ko && " 지도에서 누른 위치는 이미 찍혀 있어요."}
         </DialogDescription>
       </DialogHeader>
 
@@ -140,6 +141,7 @@ function DetailForm({
           </Label>
           <Input
             id="detail_zh"
+            autoFocus
             className="font-zh"
             placeholder="例: 易武镇, 老班章村, 狮峰山"
             value={zh}
@@ -260,7 +262,7 @@ function DetailForm({
           <Button type="button" variant="ghost" onClick={onCancel}>
             취소
           </Button>
-          <Button type="button" onClick={save} disabled={!zh.trim() && !ko.trim()}>
+          <Button type="button" onClick={save} disabled={!zh.trim() && !ko.trim() && !pos}>
             저장
           </Button>
         </div>

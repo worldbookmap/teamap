@@ -27,7 +27,6 @@ function originDetail(v: unknown): OriginDetail | null {
   const d = v as Record<string, unknown>;
   const name_zh = str(d.name_zh, 100);
   const name_ko = str(d.name_ko, 100);
-  if (!name_zh && !name_ko) return null;
   const out: OriginDetail = { kind: d.kind === "town" ? "town" : "place", name_zh, name_ko };
   const code = str(d.code, 20);
   if (out.kind === "town" && /^\d{9,12}$/.test(code)) out.code = code;
@@ -38,6 +37,8 @@ function originDetail(v: unknown): OriginDetail | null {
     out.lng = Math.round(lng * 1e5) / 1e5;
     out.lat = Math.round(lat * 1e5) / 1e5;
   }
+  // 이름도 위치도 없으면 세부 산지 아님
+  if (!name_zh && !name_ko && out.lng == null) return null;
   return out;
 }
 

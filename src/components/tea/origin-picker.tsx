@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { HanjaConverter } from "@/lib/hanja";
 import { childrenOf, fullName, LEVEL_KO, makeOrigin, type RegionIndex, type RegionSearchItem } from "@/lib/regions";
-import { originKey } from "@/lib/towns";
+import { originKey, UNNAMED_SPOT } from "@/lib/towns";
 import type { OriginDetail, TeaOrigin } from "@/lib/types";
 import { OriginDetailDialog } from "./origin-detail-dialog";
 
@@ -22,19 +22,24 @@ export function OriginPicker({
   regions,
   search,
   conv,
+  autoEditFirst = false,
 }: {
   value: TeaOrigin[];
   onChange: (v: TeaOrigin[]) => void;
   regions: RegionIndex;
   search: RegionSearchItem[];
   conv: HanjaConverter;
+  /** 처음 열 때 첫 산지의 세부 산지 편집을 바로 엽니다 (지도에서 길게 눌러 등록할 때) */
+  autoEditFirst?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [prov, setProv] = useState<string>("");
   const [city, setCity] = useState<string>("");
   const [dist, setDist] = useState<string>("");
   /** 세부 산지 편집: index 가 null 이면 같은 현에 새로 추가 */
-  const [editing, setEditing] = useState<{ index: number | null; origin: TeaOrigin } | null>(null);
+  const [editing, setEditing] = useState<{ index: number | null; origin: TeaOrigin } | null>(() =>
+    autoEditFirst && value[0] ? { index: 0, origin: value[0] } : null,
+  );
 
   const add = (code: string) => {
     if (value.some((o) => o.adcode === code && !o.detail)) return;
@@ -108,7 +113,8 @@ export function OriginPicker({
                       className="rounded bg-background/70 px-1 hover:bg-background"
                       onClick={() => setEditing({ index: i, origin: o })}
                     >
-                      › <span className="font-zh">{o.detail.name_zh}</span> {o.detail.name_ko}
+                      › <span className="font-zh">{o.detail.name_zh}</span>{" "}
+                      {o.detail.name_ko || (!o.detail.name_zh && <span className="text-muted-foreground">{UNNAMED_SPOT}</span>)}
                       {o.detail.lng != null && <MapPin className="ml-0.5 inline size-3 text-seal" />}
                     </button>
                   )}

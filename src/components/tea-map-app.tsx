@@ -43,9 +43,14 @@ export function TeaMapApp() {
   const [hoverTeaId, setHoverTeaId] = useState<string | null>(null);
 
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [form, setForm] = useState<{ open: boolean; tea?: Tea | null; parent?: Tea | null; origins?: TeaOrigin[] }>({
-    open: false,
-  });
+  const [form, setForm] = useState<{
+    open: boolean;
+    tea?: Tea | null;
+    parent?: Tea | null;
+    origins?: TeaOrigin[];
+    /** 지도에서 길게 눌러 열었을 때: 세부 산지 편집부터 */
+    fromMap?: boolean;
+  }>({ open: false });
   const [mapResetKey, setMapResetKey] = useState(0);
   const [loginOpen, setLoginOpen] = useState(false);
 
@@ -204,6 +209,16 @@ export function TeaMapApp() {
     setForm({ open: true, tea: null, origins: origin ? [origin] : [] });
   };
 
+  /** 지도에서 현·구를 길게 누름: 그 구역 + 누른 위치로 새 차 등록 */
+  const onMapLongPress = (adcode: string, [lng, lat]: [number, number]) => {
+    if (!regions || !conv) return;
+    const origin = makeOrigin(regions, conv, adcode);
+    if (!origin) return;
+    origin.detail = { kind: "place", name_zh: "", name_ko: "", lng, lat };
+    setFocusCode(adcode);
+    setForm({ open: true, tea: null, parent: null, origins: [origin], fromMap: true });
+  };
+
   const onSaved = (saved: Tea) => {
     setTeas((list) => (list.some((t) => t.id === saved.id) ? list.map((t) => (t.id === saved.id ? saved : t)) : [...list, saved]));
   };
@@ -249,6 +264,7 @@ export function TeaMapApp() {
             highlightTeaId={hoverTeaId}
             onRegionClick={onRegionClick}
             resetKey={mapResetKey}
+            onLongPress={admin ? onMapLongPress : undefined}
           />
 
           <nav className="absolute top-3 right-3 left-3 flex items-center gap-1 lg:right-auto">
@@ -439,6 +455,7 @@ export function TeaMapApp() {
         tea={form.tea}
         parent={form.parent}
         initialOrigins={form.origins}
+        editFirstOriginDetail={form.fromMap}
         conv={conv}
         regions={regions}
         regionSearch={regionSearch}
