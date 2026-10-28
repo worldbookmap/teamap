@@ -373,7 +373,7 @@ export function TeaMapApp() {
           </div>
 
           {/* 모바일은 페이지 전체가 스크롤, 데스크톱은 목록만 스크롤 */}
-          <div className="p-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <div className="p-4 pb-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {inRegion.length > 0 ? (
               <motion.ul layout className="space-y-2">
                 <AnimatePresence initial={false} mode="popLayout">
@@ -408,6 +408,8 @@ export function TeaMapApp() {
           </div>
         </aside>
       </main>
+
+      <Footer />
 
       <TeaDetailDialog
         tea={detail}
@@ -620,5 +622,42 @@ function Legend() {
         </span>
       ))}
     </div>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t bg-card/70 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] text-xs text-muted-foreground backdrop-blur">
+      <span>
+        만든이 <b className="font-medium text-foreground">고릴라닷컴</b>
+      </span>
+      <span aria-hidden className="text-border">
+        |
+      </span>
+      <span className="flex items-center gap-1">
+        운영하는이
+        <a
+          href="https://instagram.com/teaggle.club"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:text-seal hover:underline"
+        >
+          <InstagramGlyph className="size-3.5" />
+          티끌
+          <span className="text-muted-foreground">@teaggle.club</span>
+        </a>
+      </span>
+    </footer>
+  );
+}
+
+/** 인스타그램 모양 아이콘 (lucide 에는 브랜드 아이콘이 없어 직접 그림) */
+function InstagramGlyph({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={className} aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor" />
+    </svg>
   );
 }
