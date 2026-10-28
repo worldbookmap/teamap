@@ -318,14 +318,16 @@ function Header({
   const { resolvedTheme, setTheme } = useTheme();
   return (
     <header className="flex items-center gap-3 border-b bg-card/70 px-4 py-2.5 backdrop-blur">
-      <motion.div
+      <motion.img
+        src="/teaggle.jpg"
+        alt="Teaggle Club"
+        width={40}
+        height={40}
         initial={{ rotate: -12, scale: 0.8, opacity: 0 }}
-        animate={{ rotate: -4, scale: 1, opacity: 1 }}
+        animate={{ rotate: 0, scale: 1, opacity: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 18 }}
-        className="grid size-9 place-items-center rounded-md bg-seal font-zh text-xl font-bold text-white shadow-sm"
-      >
-        茶
-      </motion.div>
+        className="size-10 shrink-0 rounded-full bg-white object-cover shadow-sm ring-1 ring-border"
+      />
       <div className="leading-tight">
         <h1 className="font-heading text-lg font-bold">중국 차 지도</h1>
         <p className="font-zh text-xs tracking-[0.3em] text-muted-foreground">中國茶地圖</p>
