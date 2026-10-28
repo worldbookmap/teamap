@@ -59,14 +59,28 @@ const variants = await readField("Unihan_Variants.txt", ["kTraditionalVariant", 
 const core = await readField("Unihan_DictionaryLikeData.txt", ["kUnihanCore2020", "kGradeLevel"]);
 const iicore = await readField("Unihan_IRGSources.txt", ["kIICore"]);
 
-// 기본 음 선택: 교육용(E) 표시가 있으면 우선, 없으면 첫 번째
+// 두음법칙 (녀→여, 랑→낭)
+const I_LIKE = new Set([2, 3, 6, 7, 12, 17, 20]);
+function initialLaw(syl) {
+  const c = syl.charCodeAt(0) - 0xac00;
+  const ini = Math.floor(c / 588), med = Math.floor((c % 588) / 28), fin = c % 28;
+  let next = ini;
+  if (ini === 5) next = I_LIKE.has(med) ? 11 : 2;
+  else if (ini === 2 && I_LIKE.has(med)) next = 11;
+  return String.fromCharCode(0xac00 + next * 588 + med * 28 + fin);
+}
+
+// 기본 음 선택: 교육용(E) 표시가 있으면 우선, 없으면 첫 번째.
+// 교육용 표시가 없고 첫 음이 두음법칙 형태(朗 낭·랑)면 본음(랑)을 씁니다 — 어두의 두음법칙은 변환기가 따로 적용
 function primaryReading(raw) {
   const items = raw.split(" ").map((s) => {
     const [syl, flags = ""] = s.split(":");
     return { syl, edu: flags.includes("E") };
   });
   const edu = items.find((i) => i.edu);
-  return { primary: (edu ?? items[0]).syl, all: [...new Set(items.map((i) => i.syl))] };
+  let primary = (edu ?? items[0]).syl;
+  if (!edu) primary = items.find((i) => i.syl !== primary && initialLaw(i.syl) === primary)?.syl ?? primary;
+  return { primary, all: [...new Set(items.map((i) => i.syl))] };
 }
 
 // 차·지명 문맥에서 자주 쓰는 음으로 덮어쓰기 (Unihan 기본음과 다르거나 누락된 글자)

@@ -28,6 +28,7 @@ Supabase 설정이 없으면 자동으로 **로컬 파일 저장소**(`.data/tea
 | 한글 → 한자 | 한글로 쓰고 「한글 → 한자」를 누르면 사전 단어·지명을 찾아 바꾸고, 음절마다 다른 한자 후보를 고를 수 있음 |
 | 지역 검색 | `항주`, `杭州`, `杭州市`, `무이산` 처럼 한글·간체·번체 아무거나로 검색 |
 | 설명 독음 달기 | 설명 속 한자를 `암운(岩韻)` 형식으로 바꿔 줌 |
+| 세부 산지 | 현·구 산지 아래에 향·진(乡镇, 공식 목록 41,352곳)을 고르거나 차산·마을 이름을 직접 입력하고, 그 현 지도에서 눌러 위치를 찍으면 지도에 핀으로 표시 |
 | 제품 | 대표 차 아래에 차창·브랜드별 제품 등록 (예: 普洱茶 → 勐海茶厂 7542, 7572). 제품마다 이름·제조사·산지·사진·설명·마신 기록 |
 | 마신 기록 | 차 상세의 「마신 기록」 탭에서 날짜·별점(0.5 단위)·사진·가격/양·구매처·생산 연도·우림 정보·향·맛·메모를 남김. 상단 「마신 기록」에서 전체 기록을 월별로, 목록에서 「마신 차」만 걸러 보기 |
 
@@ -61,6 +62,7 @@ Supabase 설정이 없으면 자동으로 **로컬 파일 저장소**(`.data/tea
 ```bash
 npm run geo:fetch     # DataV 경계 데이터 → public/geo/*.json, src/data/regions.json
 npm run hanja:build   # .cache/unihan 의 Unihan DB → src/data/hanja.json
+npm run towns:build   # 향·진 이름 목록 → public/towns/{현 adcode}.json
 ```
 
 `hanja:build` 전에 [Unihan.zip](https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip) 을 `.cache/unihan/` 에 풀어 두세요.
@@ -77,5 +79,6 @@ src/
   lib/store/         local(JSON 파일) / supabase 저장소
   data/              hanja.json · regions.json · dictionary.ts · seed-teas.ts
 public/geo/          행정구역 경계 TopoJSON (adcode 별)
+public/towns/        현별 향·진 이름 목록 (경계 없음, 출처: modood/Administrative-divisions-of-China)
 supabase/migrations/ DB 스키마
 ```

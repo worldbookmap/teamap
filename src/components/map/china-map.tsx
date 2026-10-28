@@ -123,6 +123,26 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
     [teas, viewCode],
   );
 
+  /** 세부 산지 위치 핀 (전국 지도에서는 너무 빽빽해 생략) */
+  const pins = useMemo(() => {
+    if (!projection || viewCode === CHINA) return [];
+    const m = new Map<string, { x: number; y: number; zh: string; ko: string; teas: Tea[] }>();
+    for (const t of teas) {
+      for (const o of t.origins) {
+        const d = o.detail;
+        if (!d || d.lng == null || d.lat == null || !o.path.includes(viewCode)) continue;
+        const key = `${d.lng},${d.lat}`;
+        const pt = projection([d.lng, d.lat]);
+        if (!pt) continue;
+        const cur = m.get(key) ?? { x: pt[0], y: pt[1], zh: d.name_zh, ko: d.name_ko, teas: [] };
+        if (!cur.teas.includes(t)) cur.teas.push(t);
+        m.set(key, cur);
+      }
+    }
+    return [...m.values()];
+  }, [teas, projection, viewCode]);
+  const countyView = features[0]?.properties.level === "district";
+
   const shapesData = useMemo(() => {
     if (!path || !projection) return [];
     return features.map((f) => {
@@ -310,6 +330,32 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
                   </motion.g>
                 );
               })}
+
+              {/* 세부 산지 핀 */}
+              {pins.map((p) => (
+                <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y}) scale(${1 / k})`}>
+                  <title>{`${p.zh} ${p.ko}\n${p.teas.map((t) => t.name_zh || t.name_ko).join(", ")}`}</title>
+                  <motion.path
+                    d="M0 0 C -5 -7 -6.5 -10 -6.5 -13 A 6.5 6.5 0 1 1 6.5 -13 C 6.5 -10 5 -7 0 0 Z"
+                    initial={{ scale: 0, y: -6 }}
+                    animate={{ scale: 1, y: 0 }}
+                    transition={{ type: "spring", stiffness: 420, damping: 20, delay: 0.25 }}
+                    style={{ fill: CATEGORY_META[p.teas[0].category].color, stroke: "white", strokeWidth: 1.2 }}
+                  />
+                  <circle cy={-13} r={2.3} fill="white" pointerEvents="none" />
+                  {(countyView || k >= 2.5) && (
+                    <text
+                      x={9}
+                      y={-9}
+                      className="font-zh"
+                      pointerEvents="none"
+                      style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: 600, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
+                    >
+                      {p.zh || p.ko}
+                    </text>
+                  )}
+                </g>
+              ))}
             </g>
           </motion.svg>
         )}

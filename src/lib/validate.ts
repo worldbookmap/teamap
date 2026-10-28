@@ -1,4 +1,11 @@
-import { TEA_CATEGORIES, type TastingInput, type TeaCategory, type TeaInput, type TeaOrigin } from "./types";
+import {
+  TEA_CATEGORIES,
+  type OriginDetail,
+  type TastingInput,
+  type TeaCategory,
+  type TeaInput,
+  type TeaOrigin,
+} from "./types";
 
 const str = (v: unknown, max = 5000) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
@@ -9,7 +16,29 @@ function origin(v: unknown): TeaOrigin | null {
   const path = Array.isArray(o.path) ? o.path.map((p) => str(p, 20)).filter(Boolean) : [];
   const level = o.level === "province" || o.level === "city" || o.level === "district" ? o.level : null;
   if (!/^\d{6}$/.test(adcode) || !level) return null;
-  return { adcode, path: path.length ? path : [adcode], name_zh: str(o.name_zh, 100), name_ko: str(o.name_ko, 100), level };
+  const out: TeaOrigin = { adcode, path: path.length ? path : [adcode], name_zh: str(o.name_zh, 100), name_ko: str(o.name_ko, 100), level };
+  const detail = originDetail(o.detail);
+  if (detail) out.detail = detail;
+  return out;
+}
+
+function originDetail(v: unknown): OriginDetail | null {
+  if (!v || typeof v !== "object") return null;
+  const d = v as Record<string, unknown>;
+  const name_zh = str(d.name_zh, 100);
+  const name_ko = str(d.name_ko, 100);
+  if (!name_zh && !name_ko) return null;
+  const out: OriginDetail = { kind: d.kind === "town" ? "town" : "place", name_zh, name_ko };
+  const code = str(d.code, 20);
+  if (out.kind === "town" && /^\d{9,12}$/.test(code)) out.code = code;
+  const lng = Number(d.lng);
+  const lat = Number(d.lat);
+  // 중국 범위 안의 좌표만
+  if (d.lng != null && d.lat != null && lng >= 70 && lng <= 140 && lat >= 0 && lat <= 56) {
+    out.lng = Math.round(lng * 1e5) / 1e5;
+    out.lat = Math.round(lat * 1e5) / 1e5;
+  }
+  return out;
 }
 
 /** 요청 본문을 TeaInput 으로 정리합니다. partial=true 면 넘어온 필드만 */

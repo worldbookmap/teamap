@@ -22,6 +22,7 @@ import { CATEGORY_META } from "@/lib/categories";
 import { buildRegionSearch, CHINA, makeOrigin, regionPath } from "@/lib/regions";
 import { categoryCounts, matchesQuery, teasInRegion } from "@/lib/tea-utils";
 import { TEA_CATEGORIES, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
+import { originKey } from "@/lib/towns";
 import { cn } from "@/lib/utils";
 
 type Me = Awaited<ReturnType<typeof api.me>>;
@@ -102,7 +103,9 @@ export function TeaMapApp() {
         .filter((t) => !t.parent_id)
         .map((t) => {
           const extra = (productsOf.get(t.id) ?? []).flatMap((p) => p.origins);
-          const origins = [...t.origins, ...extra].filter((o, i, all) => all.findIndex((x) => x.adcode === o.adcode) === i);
+          const origins = [...t.origins, ...extra].filter(
+            (o, i, all) => all.findIndex((x) => originKey(x) === originKey(o)) === i,
+          );
           return { ...t, origins };
         }),
     [teas, productsOf],

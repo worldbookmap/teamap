@@ -29,7 +29,12 @@ export function matchesQuery(t: Tea, q: string, simplify?: (s: string) => string
   const query = q.trim().toLowerCase();
   if (!query) return true;
   const simp = simplify ? simplify(query) : query;
-  const hay = [t.name_ko, t.name_zh, t.name_zh_trad, ...t.origins.flatMap((o) => [o.name_ko, o.name_zh])]
+  const hay = [
+    t.name_ko,
+    t.name_zh,
+    t.name_zh_trad,
+    ...t.origins.flatMap((o) => [o.name_ko, o.name_zh, o.detail?.name_ko ?? "", o.detail?.name_zh ?? ""]),
+  ]
     .join(" ")
     .toLowerCase();
   return hay.includes(query) || hay.includes(simp) || (simplify ? simplify(hay).includes(simp) : false);

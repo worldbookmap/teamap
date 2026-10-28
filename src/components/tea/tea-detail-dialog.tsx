@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORY_META } from "@/lib/categories";
 import type { RegionIndex } from "@/lib/regions";
+import { originKey } from "@/lib/towns";
 import type { Tasting, Tea, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CategoryBadge, TeaSeal, TeaThumb } from "./tea-visual";
@@ -279,7 +280,7 @@ function TeaDetail({
                 <h3 className="text-xs font-medium tracking-wider text-muted-foreground">산지 · 産地</h3>
                 <ul className="flex flex-wrap gap-1.5">
                   {tea.origins.map((o) => (
-                    <li key={o.adcode}>
+                    <li key={originKey(o)}>
                       <button
                         onClick={() => onShowOrigin(o)}
                         className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm transition hover:border-primary hover:bg-secondary"
@@ -294,6 +295,13 @@ function TeaDetail({
                         </span>
                         <span className="font-zh font-medium">{o.name_zh}</span>
                         <span>{o.name_ko}</span>
+                        {o.detail && (
+                          <>
+                            <span className="text-muted-foreground">›</span>
+                            <span className="font-zh font-medium">{o.detail.name_zh}</span>
+                            <span>{o.detail.name_ko}</span>
+                          </>
+                        )}
                       </button>
                     </li>
                   ))}

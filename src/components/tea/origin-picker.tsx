@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { MapPin, Plus, Search, X } from "lucide-react";
+import { MapPin, MapPinPlus, Plus, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { HanjaConverter } from "@/lib/hanja";
 import { childrenOf, fullName, LEVEL_KO, makeOrigin, type RegionIndex, type RegionSearchItem } from "@/lib/regions";
-import type { TeaOrigin } from "@/lib/types";
+import { originKey } from "@/lib/towns";
+import type { OriginDetail, TeaOrigin } from "@/lib/types";
+import { OriginDetailDialog } from "./origin-detail-dialog";
 
 const norm = (s: string) => s.replace(/\s+/g, "").toLowerCase();
 
@@ -31,12 +33,29 @@ export function OriginPicker({
   const [prov, setProv] = useState<string>("");
   const [city, setCity] = useState<string>("");
   const [dist, setDist] = useState<string>("");
+  /** 세부 산지 편집: index 가 null 이면 같은 현에 새로 추가 */
+  const [editing, setEditing] = useState<{ index: number | null; origin: TeaOrigin } | null>(null);
 
   const add = (code: string) => {
-    if (value.some((o) => o.adcode === code)) return;
+    if (value.some((o) => o.adcode === code && !o.detail)) return;
     const o = makeOrigin(regions, conv, code);
     if (o) onChange([...value, o]);
   };
+
+  const saveDetail = (detail: OriginDetail | null) => {
+    if (!editing) return;
+    const { index, origin } = editing;
+    const next: TeaOrigin = { ...origin };
+    if (detail) next.detail = detail;
+    else delete next.detail;
+    if (index == null) {
+      if (detail && !value.some((o) => originKey(o) === originKey(next))) onChange([...value, next]);
+    } else {
+      onChange(value.map((o, i) => (i === index ? next : o)));
+    }
+  };
+  /** 세부 산지는 더 나눌 수 없는 말단 구역(현·구 등)에만 */
+  const canDetail = (o: TeaOrigin) => regions[o.adcode]?.k === 0 && o.level !== "province";
 
   const results = useMemo(() => {
     const q = norm(query);
@@ -71,10 +90,10 @@ export function OriginPicker({
       <AnimatePresence initial={false}>
         {value.length > 0 && (
           <motion.ul layout className="flex flex-wrap gap-1.5">
-            {value.map((o) => (
+            {value.map((o, i) => (
               <motion.li
                 layout
-                key={o.adcode}
+                key={originKey(o)}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.9 }}
@@ -83,14 +102,40 @@ export function OriginPicker({
                   <MapPin className="size-3" />
                   <span className="font-zh">{o.name_zh}</span>
                   <span>{o.name_ko}</span>
+                  {o.detail && (
+                    <button
+                      type="button"
+                      className="rounded bg-background/70 px-1 hover:bg-background"
+                      onClick={() => setEditing({ index: i, origin: o })}
+                    >
+                      › <span className="font-zh">{o.detail.name_zh}</span> {o.detail.name_ko}
+                      {o.detail.lng != null && <MapPin className="ml-0.5 inline size-3 text-seal" />}
+                    </button>
+                  )}
                   <span className="text-muted-foreground">
                     · {o.path.slice(0, -1).map((c) => regions[c]?.n ?? "").join(" ")}
                   </span>
+                  {canDetail(o) && (
+                    <button
+                      type="button"
+                      aria-label={o.detail ? "같은 지역에 세부 산지 하나 더" : "세부 산지 추가"}
+                      title={o.detail ? "같은 지역에 세부 산지 하나 더" : "세부 산지(향·진, 차산·마을) 추가"}
+                      className="flex items-center gap-0.5 rounded-full px-1 py-0.5 text-primary hover:bg-background"
+                      onClick={() =>
+                        o.detail
+                          ? setEditing({ index: null, origin: { ...o, detail: undefined } })
+                          : setEditing({ index: i, origin: o })
+                      }
+                    >
+                      <MapPinPlus className="size-3" />
+                      {!o.detail && <span className="text-[11px]">세부</span>}
+                    </button>
+                  )}
                   <button
                     type="button"
                     aria-label="삭제"
                     className="ml-0.5 rounded-full p-0.5 hover:bg-background"
-                    onClick={() => onChange(value.filter((x) => x.adcode !== o.adcode))}
+                    onClick={() => onChange(value.filter((_, j) => j !== i))}
                   >
                     <X className="size-3" />
                   </button>
@@ -188,6 +233,14 @@ export function OriginPicker({
           <Plus /> 추가
         </Button>
       </div>
+
+      <OriginDetailDialog
+        origin={editing?.origin ?? null}
+        onOpenChange={(open) => !open && setEditing(null)}
+        onSave={saveDetail}
+        regions={regions}
+        conv={conv}
+      />
     </div>
   );
 }

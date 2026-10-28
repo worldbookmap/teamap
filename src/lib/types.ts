@@ -3,6 +3,18 @@ export type TeaCategory = (typeof TEA_CATEGORIES)[number];
 
 export type RegionLevel = "province" | "city" | "district";
 
+/** 현·구보다 세부 산지: 향·진(乡镇) 또는 차산·마을 등 직접 입력한 곳 */
+export interface OriginDetail {
+  kind: "town" | "place";
+  /** 향·진 코드 (kind=town 일 때, 9자리) */
+  code?: string;
+  name_zh: string;
+  name_ko: string;
+  /** 지도에 찍은 위치 (경도, 위도) */
+  lng?: number;
+  lat?: number;
+}
+
 /** 차의 산지. path 는 [성, 시, 현] 순서의 adcode 목록 (지정한 단계까지만) */
 export interface TeaOrigin {
   adcode: string;
@@ -10,6 +22,7 @@ export interface TeaOrigin {
   name_zh: string;
   name_ko: string;
   level: RegionLevel;
+  detail?: OriginDetail;
 }
 
 export interface Tea {
