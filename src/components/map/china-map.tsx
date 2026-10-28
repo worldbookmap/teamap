@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_META } from "@/lib/categories";
 import { loadRegionShapes, type RegionFeature } from "@/lib/geo";
+import { loadTowns, townPos } from "@/lib/towns";
 import type { HanjaConverter } from "@/lib/hanja";
 import { CHINA } from "@/lib/regions";
 import { dominantCategory, teasInRegion } from "@/lib/tea-utils";
@@ -25,6 +26,8 @@ interface Props {
   /** 바뀌면 확대·이동을 처음 상태로 */
   resetKey?: number;
   onRegionClick: (adcode: string, hasChildren: boolean) => void;
+  /** 지역 검색에서 고른 향·진 (위치가 있으면 표시) */
+  focusTown?: { zh: string; ko: string; lng: number; lat: number } | null;
   /** 더 나눌 수 없는 구역(현·구)을 길게 눌렀을 때 그 위치 (없으면 길게 누르기 꺼짐) */
   onLongPress?: (adcode: string, lngLat: [number, number]) => void;
 }
@@ -64,7 +67,17 @@ function useSize<T extends HTMLElement>() {
 
 const LONG_PRESS_MS = 650;
 
-export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, resetKey, onRegionClick, onLongPress }: Props) {
+export function ChinaMap({
+  viewCode,
+  focusCode,
+  teas,
+  conv,
+  highlightTeaId,
+  resetKey,
+  focusTown,
+  onRegionClick,
+  onLongPress,
+}: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
@@ -146,6 +159,33 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
     return [...m.values()];
   }, [teas, projection, viewCode]);
   const countyView = features[0]?.properties.level === "district";
+
+  // 현·구가 보이는 지도에서는 향·진 위치를 점으로 (OpenStreetMap 기준, 일부만 위치가 있음)
+  const [towns, setTowns] = useState<{ view: string; list: { code: string; county: string; zh: string; x: number; y: number }[] }>({
+    view: "",
+    list: [],
+  });
+  useEffect(() => {
+    const leaves = features.filter((f) => f.properties.childrenNum === 0 && /^\d{6}$/.test(f.properties.adcode));
+    if (!projection || !leaves.length || leaves.length > 40) return;
+    let alive = true;
+    Promise.all(leaves.map((f) => loadTowns(f.properties.adcode).then((ts) => ts.map((t) => ({ t, county: f.properties.adcode })))))
+      .then((all) => {
+        if (!alive) return;
+        const list = all.flat().flatMap(({ t, county }) => {
+          const pos = townPos(t);
+          const pt = pos && projection([pos.lng, pos.lat]);
+          return pt ? [{ code: t[0], county, zh: t[1], x: pt[0], y: pt[1] }] : [];
+        });
+        setTowns({ view: viewCode, list });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [features, projection, viewCode]);
+  const townDots = towns.view === viewCode ? towns.list : [];
+  const focusTownPt = focusTown && projection ? projection([focusTown.lng, focusTown.lat]) : null;
 
   const shapesData = useMemo(() => {
     if (!path || !projection) return [];
@@ -376,6 +416,50 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
                 );
               })}
 
+              {/* 향·진 위치 */}
+              {townDots.map((t) => {
+                const show = k >= 2.2 || focusCode === t.county;
+                return (
+                  <g key={t.code} transform={`translate(${t.x},${t.y}) scale(${1 / k})`} pointerEvents="none">
+                    <circle r={show ? 2.4 : 1.6} style={{ fill: "var(--map-label)", opacity: show ? 0.75 : 0.35 }} />
+                    {show && (
+                      <text
+                        x={4}
+                        y={3.5}
+                        className="font-zh"
+                        style={{ fill: "var(--map-label)", fontSize: 9.5, opacity: 0.85, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 2.5 }}
+                      >
+                        {t.zh}
+                      </text>
+                    )}
+                  </g>
+                );
+              })}
+
+              {/* 검색으로 고른 향·진 */}
+              {focusTown && focusTownPt && (
+                <g transform={`translate(${focusTownPt[0]},${focusTownPt[1]}) scale(${1 / k})`} pointerEvents="none">
+                  <motion.circle
+                    r={10}
+                    fill="none"
+                    stroke="var(--seal)"
+                    strokeWidth={2}
+                    initial={{ scale: 0.6, opacity: 1 }}
+                    animate={{ scale: 1.8, opacity: 0 }}
+                    transition={{ duration: 1.4, repeat: Infinity }}
+                  />
+                  <circle r={5} style={{ fill: "var(--seal)", stroke: "white", strokeWidth: 1.5 }} />
+                  <text
+                    x={9}
+                    y={-6}
+                    className="font-zh"
+                    style={{ fill: "var(--foreground)", fontSize: 12.5, fontWeight: 700, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3.5 }}
+                  >
+                    {focusTown.zh} <tspan style={{ fontWeight: 400, fontSize: 10.5 }}>{focusTown.ko}</tspan>
+                  </text>
+                </g>
+              )}
+
               {/* 세부 산지 핀 */}
               {pins.map((p) => (
                 <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y}) scale(${1 / k})`}>
@@ -465,6 +549,17 @@ export function ChinaMap({ viewCode, focusCode, teas, conv, highlightTeaId, rese
           </motion.div>
         )}
       </AnimatePresence>
+
+      {townDots.length > 0 && (
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute right-14 bottom-3 rounded bg-card/80 px-1.5 py-0.5 text-[10px] text-muted-foreground backdrop-blur hover:underline"
+        >
+          향·진 위치 © OpenStreetMap
+        </a>
+      )}
 
       {onLongPress && features.some((f) => f.properties.childrenNum === 0 && !f.properties.adcode.includes("_")) && (
         <div className="pointer-events-none absolute bottom-3 left-1/2 hidden -translate-x-1/2 rounded-full border bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur sm:block">

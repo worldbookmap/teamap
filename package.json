@@ -12,7 +12,8 @@
     "seed:supabase": "tsx --env-file-if-exists=.env.local scripts/seed-supabase.mts",
     "migrate:supabase": "tsx --env-file-if-exists=.env.local scripts/migrate-local-to-supabase.mts",
     "typecheck": "tsc --noEmit",
-    "towns:build": "node scripts/build-towns.mjs"
+    "towns:build": "node scripts/build-towns.mjs",
+    "towns:points": "node scripts/build-town-points.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

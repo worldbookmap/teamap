@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { HanjaConverter } from "@/lib/hanja";
 import type { RegionIndex } from "@/lib/regions";
-import { loadTowns, type Town } from "@/lib/towns";
+import { loadTowns, townPos, type Town } from "@/lib/towns";
 import type { OriginDetail, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { HangulToHanja } from "./name-fields";
@@ -87,7 +87,7 @@ function DetailForm({
   }, [origin.adcode]);
 
   const townItems = useMemo(
-    () => (towns ?? []).map(([code, name]) => ({ code, name, ko: conv.toHangul(name) })),
+    () => (towns ?? []).map((t) => ({ code: t[0], name: t[1], ko: conv.toHangul(t[1]), pos: townPos(t) })),
     [towns, conv],
   );
   const suggestions = useMemo(() => {
@@ -208,6 +208,8 @@ function DetailForm({
                     setKo(t.ko);
                     setKoManual(false);
                     setTown(t.code);
+                    // 직접 찍은 위치가 없으면 향·진 위치로 핀을 놓습니다
+                    if (!pos && t.pos) setPos(t.pos);
                   }}
                   className={cn(
                     "flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-sm hover:bg-accent",
@@ -239,7 +241,13 @@ function DetailForm({
           )}
         </Label>
         {parentCode ? (
-          <CountyPinMap adcode={origin.adcode} parentCode={parentCode} value={pos} onChange={setPos} />
+          <CountyPinMap
+            adcode={origin.adcode}
+            parentCode={parentCode}
+            value={pos}
+            onChange={setPos}
+            towns={townItems.flatMap((t) => (t.pos ? [{ zh: t.name, ...t.pos }] : []))}
+          />
         ) : (
           <p className="text-xs text-muted-foreground">이 지역은 위치를 찍을 수 없습니다.</p>
         )}

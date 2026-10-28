@@ -22,7 +22,8 @@ Supabase 설정이 없으면 자동으로 **로컬 파일 저장소**(`.data/tea
 | 기능 | 설명 |
 | --- | --- |
 | 참고 지도 | 지역(성·시·현)마다 차산 지도·옛 지도 이미지나 외부 지도 링크를 등록. 목록 위 「참고 지도」에서 이 지역·하위·상위 지역 지도를 보고, 누르면 전체 화면에서 확대·이동 |
-| 지역 검색 | 지도 오른쪽 위 돋보기에서 `항주`, `杭州`, `무이산`처럼 한글·한자로 찾아 고르면 그 지역으로 바로 이동 (↑↓·Enter·Esc) |
+| 지역 검색 | 지도 오른쪽 위 돋보기에서 `항주`, `杭州`, `무이산`, `이무`(易武镇)처럼 한글·한자로 성·시·현과 향·진을 찾아 고르면 그 지역으로 바로 이동 (↑↓·Enter·Esc) |
+| 향·진 위치 | 현·구가 보이는 지도에 향·진 위치를 점으로 표시 (확대하거나 현을 고르면 이름도). 위치는 OpenStreetMap 지점을 이름·현 경계로 맞춘 것이라 일부 향·진은 위치가 없음 |
 | 지도 탐색 | 성을 누르면 시 단위, 시를 누르면 현·구 단위 지도로 들어갑니다. 휠/핀치로 확대, 상단 경로로 이동 |
 | 산지 표시 | 차가 있는 구역은 대표 다류 색으로 칠하고 개수를 표시. 목록에서 차에 마우스를 올리면 산지가 강조됩니다 |
 | 차 등록 | 사진(여러 장, 끌어서 순서 변경), 설명, 6대 다류, 산지(여러 곳, 현·구 단위까지) |
@@ -69,6 +70,7 @@ Supabase 설정이 없으면 자동으로 **로컬 파일 저장소**(`.data/tea
 npm run geo:fetch     # DataV 경계 데이터 → public/geo/*.json, src/data/regions.json
 npm run hanja:build   # .cache/unihan 의 Unihan DB → src/data/hanja.json
 npm run towns:build   # 향·진 이름 목록 → public/towns/{현 adcode}.json
+npm run towns:points  # 향·진 위치 (OpenStreetMap, 성별로 받아 .cache/osm 에 저장) → public/towns/*.json, _index.json
 ```
 
 `hanja:build` 전에 [Unihan.zip](https://www.unicode.org/Public/UCD/latest/ucd/Unihan.zip) 을 `.cache/unihan/` 에 풀어 두세요.
@@ -85,6 +87,6 @@ src/
   lib/store/         local(JSON 파일) / supabase 저장소
   data/              hanja.json · regions.json · dictionary.ts · seed-teas.ts
 public/geo/          행정구역 경계 TopoJSON (adcode 별)
-public/towns/        현별 향·진 이름 목록 (경계 없음, 출처: modood/Administrative-divisions-of-China)
+public/towns/        현별 향·진 이름·위치 (경계 없음. 이름: modood/Administrative-divisions-of-China, 위치: © OpenStreetMap contributors, ODbL)
 supabase/migrations/ DB 스키마
 ```

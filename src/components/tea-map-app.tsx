@@ -55,6 +55,8 @@ export function TeaMapApp() {
     fromMap?: boolean;
   }>({ open: false });
   const [mapResetKey, setMapResetKey] = useState(0);
+  /** 지역 검색에서 고른 향·진 */
+  const [focusTown, setFocusTown] = useState<{ zh: string; ko: string; lng: number; lat: number } | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
 
   // 마신 기록
@@ -189,6 +191,7 @@ export function TeaMapApp() {
   );
 
   const onRegionClick = (code: string, hasChildren: boolean) => {
+    setFocusTown(null);
     if (hasChildren) goTo(code);
     else setFocusCode((f) => (f === code ? null : code));
   };
@@ -196,6 +199,7 @@ export function TeaMapApp() {
   const crumbs = regions ? [CHINA, ...regionPath(regions, regionCode)] : [CHINA];
   const parentOf = (code: string) => (code === CHINA ? null : (regions?.[code]?.p ?? CHINA));
   const back = () => {
+    setFocusTown(null);
     if (focusCode) setFocusCode(null);
     else goTo(parentOf(viewCode) ?? CHINA);
   };
@@ -220,6 +224,7 @@ export function TeaMapApp() {
     setQuery("");
     setCats(new Set());
     setDrunkOnly(false);
+    setFocusTown(null);
     setMapResetKey((k) => k + 1);
   };
   const admin = !!me?.admin;
@@ -284,11 +289,28 @@ export function TeaMapApp() {
             highlightTeaId={hoverTeaId}
             onRegionClick={onRegionClick}
             resetKey={mapResetKey}
+            focusTown={focusTown}
             onLongPress={admin ? onMapLongPress : undefined}
           />
 
           <div className="absolute top-3 right-3 z-20">
-            <RegionSearch search={regionSearch} conv={conv} onSelect={goTo} />
+            <RegionSearch
+              search={regionSearch}
+              conv={conv}
+              regions={regions}
+              onSelect={(code) => {
+                setFocusTown(null);
+                goTo(code);
+              }}
+              onSelectTown={(t) => {
+                goTo(t.county);
+                if (t.lng != null && t.lat != null) setFocusTown({ zh: t.zh, ko: t.ko, lng: t.lng, lat: t.lat });
+                else {
+                  setFocusTown(null);
+                  toast.info(`${t.zh} ${t.ko}: 위치 정보가 없어 현·구만 표시합니다.`);
+                }
+              }}
+            />
           </div>
 
           <nav className="absolute top-3 right-14 left-3 flex items-center gap-1 lg:right-auto">

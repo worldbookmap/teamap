@@ -8,7 +8,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const SRC = path.join(ROOT, ".cache/unihan");
 const OUT = path.join(ROOT, "src/data/hanja.json");
 
-const cpToChar = (u) => String.fromCodePoint(parseInt(u.slice(2), 16));
+const cpToChar = (u) => String.fromCodePoint(parseInt(u.slice(2).split("<")[0], 16));
 
 async function readField(file, fields) {
   const text = await fs.readFile(path.join(SRC, file), "utf8");
@@ -105,6 +105,23 @@ for (const [ch, raw] of readings.kHangul) {
   const p = OVERRIDES[ch] ?? primary;
   const alts = all.filter((a) => a !== p);
   reading[ch] = alts.length ? `${p}|${alts.join(",")}` : p;
+}
+
+// 간체가 원래 뜻이 다른 옛 글자이기도 한 경우(腊 석 ↔ 臘 랍, 机 궤 ↔ 機 기),
+// 같은 중국어 발음의 번체 글자 음을 대표음으로 씁니다. 지명·관용음 때문에 제 음을 지킬 글자는 예외
+const KEEP_OWN = new Set([..."台于曲折郁苹霉"]);
+const firstMandarin = (c) => (readings.kMandarin.get(c) ?? "").split(" ")[0];
+for (const [ch, v] of variants.kTraditionalVariant) {
+  if (!readings.kHangul.has(ch) || KEEP_OWN.has(ch) || OVERRIDES[ch]) continue;
+  const same = v
+    .split(" ")
+    .map(cpToChar)
+    .find((t) => t !== ch && readings.kHangul.has(t) && firstMandarin(t) && firstMandarin(t) === firstMandarin(ch));
+  if (!same) continue;
+  const tradPrimary = primaryReading(readings.kHangul.get(same)).primary;
+  const own = reading[ch].split("|").join(",").split(",");
+  if (own[0] === tradPrimary) continue;
+  reading[ch] = `${tradPrimary}|${own.filter((r) => r !== tradPrimary).join(",")}`;
 }
 
 for (const [ch, v] of variants.kTraditionalVariant) {

@@ -14,12 +14,15 @@ export function CountyPinMap({
   parentCode,
   value,
   onChange,
+  towns = [],
 }: {
   adcode: string;
   /** 이 현의 경계가 들어 있는 상위 구역 지도 (시 또는 직할시) */
   parentCode: string;
   value: { lng: number; lat: number } | null;
   onChange: (v: { lng: number; lat: number }) => void;
+  /** 참고용 향·진 위치 */
+  towns?: { zh: string; lng: number; lat: number }[];
 }) {
   const [feature, setFeature] = useState<RegionFeature | null | undefined>(undefined);
 
@@ -77,6 +80,18 @@ export function CountyPinMap({
       }}
     >
       <path d={d} style={{ fill: "var(--map-land)", stroke: "var(--map-stroke)", strokeWidth: 1.2 }} />
+      {towns.map((t) => {
+        const p = projection([t.lng, t.lat]);
+        if (!p) return null;
+        return (
+          <g key={`${t.zh}${t.lng}`} transform={`translate(${p[0]},${p[1]})`} pointerEvents="none">
+            <circle r={2} style={{ fill: "var(--map-label)", opacity: 0.6 }} />
+            <text x={3.5} y={3} className="font-zh" style={{ fill: "var(--map-label)", fontSize: 8.5, opacity: 0.75 }}>
+              {t.zh}
+            </text>
+          </g>
+        );
+      })}
       {pin && (
         <g transform={`translate(${pin[0]},${pin[1]})`} pointerEvents="none">
           <path d="M0 0 C -7 -10 -9 -14 -9 -18 A 9 9 0 1 1 9 -18 C 9 -14 7 -10 0 0 Z" style={{ fill: "var(--seal)", stroke: "white", strokeWidth: 1.5 }} />
