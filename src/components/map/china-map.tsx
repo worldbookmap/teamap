@@ -734,12 +734,6 @@ export function ChinaMap({
         </a>
       )}
 
-      {onLongPress && features.some((f) => f.properties.childrenNum === 0 && !f.properties.adcode.includes("_")) && (
-        <div className="pointer-events-none absolute bottom-3 left-1/2 hidden -translate-x-1/2 rounded-full border bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur sm:block">
-          현·구를 <b className="text-foreground">길게 누르면</b> 그 위치에 새 차를 등록해요
-        </div>
-      )}
-
       {selfTeas.length > 0 && (
         <div className="absolute left-3 top-3 rounded-full border bg-card/90 px-3 py-1 text-xs shadow-sm backdrop-blur">
           이 지역 전역: <b>{selfTeas.length}종</b>

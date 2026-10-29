@@ -426,10 +426,6 @@ export function TeaMapApp() {
                     {regionCode === CHINA ? "중국 전역" : conv?.toHangul(curName)}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {loading ? "불러오는 중…" : `${inRegion.length}종의 차`}
-                  {regionCode === CHINA && " · 지도의 성(省)을 눌러 시·현 단위까지 들어가 보세요"}
-                </p>
                 {(admin || mapCount > 0) && <MapsButton className="mt-2" count={mapCount} onClick={() => setMapsOpen(true)} />}
               </motion.div>
             </AnimatePresence>
