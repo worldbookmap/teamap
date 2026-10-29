@@ -107,6 +107,31 @@ export function ChinaMap({
     };
   }, [viewCode]);
 
+  // 세부 지역에 들어가면 주변 지역(전국의 성 + 같은 성의 다른 시)을 연하게 깔아 위치를 알 수 있게
+  const [around, setAround] = useState<{ view: string; features: RegionFeature[] }>({ view: "", features: [] });
+  useEffect(() => {
+    if (viewCode === CHINA) return;
+    const province = `${viewCode.slice(0, 2)}0000`;
+    const layers = province === viewCode ? [CHINA] : [CHINA, province];
+    let alive = true;
+    Promise.all(layers.map((c) => loadRegionShapes(c)))
+      .then((all) => {
+        if (!alive) return;
+        const list = all
+          .flat()
+          .filter((f) => {
+            const c = f.properties.adcode;
+            // 지금 보는 지역과 그 지역을 품은 성은 빼고 (그 자리는 위에 따로 그림)
+            return !c.includes("_") && c !== viewCode && c !== province;
+          });
+        setAround({ view: viewCode, features: list });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [viewCode]);
+
   const features = useMemo(() => shapes?.features ?? NO_FEATURES, [shapes]);
   const error = failed === viewCode ? "지도 데이터를 불러오지 못했습니다." : null;
   const ready = shapes?.code === viewCode && width > 0;
@@ -133,6 +158,10 @@ export function ChinaMap({
   }, [features, width, height, viewCode]);
 
   const path = useMemo(() => (projection ? geoPath(projection) : null), [projection]);
+  const aroundPaths = useMemo(
+    () => (path && around.view === viewCode ? around.features.map((f) => ({ code: f.properties.adcode, d: path(f) ?? "" })) : []),
+    [path, around, viewCode],
+  );
 
   // 구역별 차 통계
   const regionTeas = useMemo(() => {
@@ -345,6 +374,17 @@ export function ChinaMap({
             </defs>
             {/* transform 은 확대 핸들러가 직접 씁니다 (React 가 덮어쓰지 않도록 prop 으로 주지 않음) */}
             <g ref={zoomGRef}>
+              {/* 주변 지역 (연하게, 누를 수 없음) */}
+              <g pointerEvents="none">
+                {aroundPaths.map(({ code, d }) => (
+                  <path
+                    key={`a-${code}`}
+                    d={d}
+                    vectorEffect="non-scaling-stroke"
+                    style={{ fill: "var(--map-land)", fillOpacity: 0.35, stroke: "var(--map-stroke)", strokeWidth: 0.6, strokeOpacity: 0.6 }}
+                  />
+                ))}
+              </g>
               <g className="map-land-shadow">
                 {shapesData.map(({ f, d }) => {
                   const code = f.properties.adcode;
