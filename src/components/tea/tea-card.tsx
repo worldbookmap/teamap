@@ -13,6 +13,7 @@ export function TeaCard({
   onHover,
   drunk,
   productCount = 0,
+  className,
 }: {
   tea: Tea;
   /** 마신 횟수와 평균 별점 */
@@ -21,10 +22,12 @@ export function TeaCard({
   productCount?: number;
   onOpen: (tea: Tea) => void;
   onHover: (id: string | null) => void;
+  className?: string;
 }) {
   return (
     <motion.li
       layout
+      className={className}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.97 }}

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, Sparkles, Sun } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, Sparkles, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +33,9 @@ import { originKey, type TownFocus } from "@/lib/towns";
 import { cn } from "@/lib/utils";
 
 type Me = Awaited<ReturnType<typeof api.me>>;
+
+/** 모바일에서 차 목록을 한 번에 보여 줄 개수 */
+const MOBILE_PAGE = 5;
 
 export function TeaMapApp() {
   const bundle = useConverter();
@@ -187,6 +190,11 @@ export function TeaMapApp() {
       )
       .map(({ t }) => t);
   }, [filtered, regionCode, productsOf]);
+  // 모바일은 페이지 전체가 스크롤되므로 목록을 MOBILE_PAGE 개씩만 보여 주고 '더보기'로 늘림.
+  // 지역·검색·필터가 바뀌면 처음 개수로 (데스크톱은 목록만 스크롤되니 전부 보여 줌)
+  const listKey = `${regionCode}|${query}|${[...cats].join()}|${drunkOnly}`;
+  const [shown, setShown] = useState({ key: listKey, n: MOBILE_PAGE });
+  const mobileLimit = shown.key === listKey ? shown.n : MOBILE_PAGE;
   const counts = useMemo(
     () => categoryCounts(teasInRegion(topTeas.filter(matchesFamily), regionCode)),
     [topTeas, matchesFamily, regionCode],
@@ -489,9 +497,10 @@ export function TeaMapApp() {
             {inRegion.length > 0 ? (
               <motion.ul layout className="space-y-2">
                 <AnimatePresence initial={false} mode="popLayout">
-                  {inRegion.map((t) => (
+                  {inRegion.map((t, i) => (
                     <TeaCard
                       key={t.id}
+                      className={i >= mobileLimit ? "max-lg:hidden" : undefined}
                       tea={t}
                       drunk={summaries.get(t.id)}
                       productCount={productsOf.get(t.id)?.length ?? 0}
@@ -503,6 +512,21 @@ export function TeaMapApp() {
                     />
                   ))}
                 </AnimatePresence>
+                {inRegion.length > mobileLimit && (
+                  <li className="pt-1 lg:hidden">
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl bg-card"
+                      onClick={() => setShown({ key: listKey, n: mobileLimit + MOBILE_PAGE * 2 })}
+                    >
+                      더보기
+                      <span className="text-muted-foreground">
+                        {mobileLimit} / {inRegion.length}
+                      </span>
+                      <ChevronDown />
+                    </Button>
+                  </li>
+                )}
               </motion.ul>
             ) : (
               !loading && (
