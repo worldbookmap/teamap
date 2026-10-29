@@ -151,14 +151,14 @@ export function ChinaMap({
     [teas, viewCode],
   );
 
-  /** 세부 산지 위치 핀 */
+  /** 세부 산지 위치 핀 (전국 지도에서는 너무 빽빽해 생략, 성을 눌러 들어가면 표시) */
   const pins = useMemo(() => {
-    if (!projection) return [];
+    if (!projection || viewCode === CHINA) return [];
     const m = new Map<string, { x: number; y: number; zh: string; ko: string; teas: Tea[] }>();
     for (const t of teas) {
       for (const o of t.origins) {
         const d = o.detail;
-        if (!d || d.lng == null || d.lat == null || (viewCode !== CHINA && !o.path.includes(viewCode))) continue;
+        if (!d || d.lng == null || d.lat == null || !o.path.includes(viewCode)) continue;
         const key = `${d.lng},${d.lat}`;
         const pt = projection([d.lng, d.lat]);
         if (!pt) continue;
@@ -375,6 +375,7 @@ export function ChinaMap({
                         }
                         if (p && !p.fired && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 6) cancelPress();
                       }}
+                      onPointerLeave={() => setHover((h) => (h?.code === code ? null : h))}
                       onPointerDown={(e) => !decorative && f.properties.childrenNum === 0 && startPress(e, code)}
                       onClick={() => {
                         // 길게 누른 뒤 손을 뗄 때 생기는 클릭은 무시
@@ -549,8 +550,7 @@ export function ChinaMap({
                     <circle cy={-13} r={2.3} fill="white" pointerEvents="none" />
                   )}
                   {/* 그 자리의 차 이름 (누르면 차 정보) */}
-                  {(viewCode !== CHINA || k >= 2.5) &&
-                    [...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko })), ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종` }] : [])].map(
+                  {[...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko })), ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종` }] : [])].map(
                       ({ id, label }, i) => (
                         <text
                           key={id || "more"}
