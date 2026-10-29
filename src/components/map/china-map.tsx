@@ -71,6 +71,9 @@ function useSize<T extends HTMLElement>() {
 
 const LONG_PRESS_MS = 650;
 
+/** 확대 배율 k 에서 글자·표식에 줄 배율: 지도만큼은 아니어도 확대할수록 커짐 (k=2 → 1.2배, k=8 → 1.9배) */
+const csScale = (k: number) => k ** -0.7;
+
 export function ChinaMap({
   viewCode,
   focusCode,
@@ -222,8 +225,8 @@ export function ChinaMap({
         const g = zoomGRef.current;
         if (g) {
           g.setAttribute("transform", e.transform.toString());
-          // 글자·표식은 반대로 축소해 크기 유지 (CSS 변수는 하위 전체 스타일을 다시 계산하게 해서 느림)
-          const inv = `scale(${1 / e.transform.k})`;
+          // 글자·표식은 반대로 축소해 조금만 커지게 (CSS 변수는 하위 전체 스타일을 다시 계산하게 해서 느림)
+          const inv = `scale(${csScale(e.transform.k)})`;
           for (const el of g.querySelectorAll(".map-cs")) el.setAttribute("transform", inv);
         }
       })
@@ -398,7 +401,7 @@ export function ChinaMap({
                 if (area * k * k < (has ? 900 : 2600)) return null;
                 return (
                   <g key={`l-${code}`} transform={`translate(${x},${y})`} pointerEvents="none">
-                    <g className="map-cs" transform={`scale(${1 / k})`}>
+                    <g className="map-cs" transform={`scale(${csScale(k)})`}>
                     <g transform={`translate(0,${has ? 24 : 0})`}>
                     <text
                       textAnchor="middle"
@@ -438,7 +441,7 @@ export function ChinaMap({
                     style={{ x, y }}
                     pointerEvents="none"
                   >
-                    <g className="map-cs" transform={`scale(${1 / k})`}>
+                    <g className="map-cs" transform={`scale(${csScale(k)})`}>
                       {highlighted.has(code) && (
                         <motion.circle
                           r={r + 6}
@@ -475,7 +478,7 @@ export function ChinaMap({
                     }}
                   >
                     <title>{`${t.zh} ${t.ko}`}</title>
-                    <g className="map-cs" transform={`scale(${1 / k})`}>
+                    <g className="map-cs" transform={`scale(${csScale(k)})`}>
                     {/* 누르기 쉽게 넓은 투명 영역 */}
                     <circle r={show ? 9 : 6} fill="transparent" />
                     <circle
@@ -502,7 +505,7 @@ export function ChinaMap({
               {/* 검색으로 고른 향·진 */}
               {focusTown && focusTownPt && (
                 <g transform={`translate(${focusTownPt[0]},${focusTownPt[1]})`} pointerEvents="none">
-                  <g className="map-cs" transform={`scale(${1 / k})`}>
+                  <g className="map-cs" transform={`scale(${csScale(k)})`}>
                   <motion.circle
                     r={10}
                     fill="none"
@@ -528,7 +531,7 @@ export function ChinaMap({
               {/* 세부 산지 핀 */}
               {pins.map((p) => (
                 <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y})`}>
-                  <g className="map-cs" transform={`scale(${1 / k})`}>
+                  <g className="map-cs" transform={`scale(${csScale(k)})`}>
                   <title>{`${[p.zh, p.ko].filter(Boolean).join(" ") || "이름 없는 위치"}\n${p.teas.map((t) => [t.name_zh, t.name_ko].filter(Boolean).join(" ")).join(", ")}`}</title>
                   <motion.path
                     d="M0 0 C -5 -7 -6.5 -10 -6.5 -13 A 6.5 6.5 0 1 1 6.5 -13 C 6.5 -10 5 -7 0 0 Z"
@@ -554,11 +557,12 @@ export function ChinaMap({
                     ...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko, ko: t.name_zh ? t.name_ko : "" })),
                     ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "" }] : []),
                   ].map(
-                      ({ id, label, ko }, i) => (
+                      ({ id, label, ko }, i, all) => (
                         <text
                           key={id || "more"}
                           x={9}
-                          y={-9 + i * 13}
+                          // 한글 이름이 있는 줄은 두 줄을 차지
+                          y={-9 + all.slice(0, i).reduce((s, a) => s + (a.ko ? 25 : 14), 0)}
                           className={cn("font-zh", id && onTeaClick && "cursor-pointer hover:underline")}
                           pointerEvents={id && onTeaClick ? "auto" : "none"}
                           onClick={(e) => {
@@ -568,7 +572,11 @@ export function ChinaMap({
                           style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: id ? 600 : 400, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
                         >
                           {label}
-                          {ko && <tspan style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.8 }}> {ko}</tspan>}
+                          {ko && (
+                            <tspan x={9} dy={11.5} style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.8 }}>
+                              {ko}
+                            </tspan>
+                          )}
                         </text>
                       ),
                     )}
