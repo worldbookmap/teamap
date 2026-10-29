@@ -170,7 +170,15 @@ export function ChinaMap({
         m.set(key, cur);
       }
     }
-    return [...m.values()];
+    return [...m.values()].map((p) => {
+      const lines = [
+        ...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko, ko: t.name_zh ? t.name_ko : "" })),
+        ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "" }] : []),
+      ];
+      // 핀과 차 이름이 차지하는 대략의 영역 (핀 끝 기준, 화면 px) — 지명과 겹치는지 볼 때 씀
+      const w = Math.max(...lines.map((l) => l.label.length * 10.5 + (l.ko ? 4 + l.ko.length * 9.5 : 0)));
+      return { ...p, lines, box: { left: -8, right: 9 + w, top: -22, bottom: -9 + (lines.length - 1) * 14 + 4 } };
+    });
   }, [teas, projection, viewCode]);
 
   // 현·구가 보이는 지도에서는 향·진 위치를 점으로 (OpenStreetMap 기준, 일부만 위치가 있음)
@@ -399,10 +407,25 @@ export function ChinaMap({
                 if (code.includes("_")) return null;
                 const has = (regionTeas.get(code)?.length ?? 0) > 0;
                 if (area * k * k < (has ? 900 : 2600)) return null;
+                // 핀·차 이름과 겹치면 핀 위나 아래로 비켜 줌 (s: 지도 좌표 1px 당 글자 크기 비율)
+                const s = csScale(k);
+                const hw = Math.max(label.length * 11.5, labelKo.length * 9.5) / 2 + 2;
+                let dy = has ? 24 : 0;
+                for (const p of pins) {
+                  const top = y + (dy - 11) * s;
+                  const bottom = y + (dy + 16) * s;
+                  const pTop = p.y + p.box.top * s;
+                  const pBottom = p.y + p.box.bottom * s;
+                  if (x + hw * s < p.x + p.box.left * s || x - hw * s > p.x + p.box.right * s || bottom < pTop || top > pBottom) continue;
+                  const up = (pTop - y) / s - 18;
+                  const above = (top + bottom) / 2 < p.y + ((p.box.top + p.box.bottom) * s) / 2;
+                  // 위로 올리다 숫자 표식(가운데 원)에 걸리면 아래로
+                  dy = above && !(has && up + 16 > -18) ? up : (pBottom - y) / s + 13;
+                }
                 return (
                   <g key={`l-${code}`} transform={`translate(${x},${y})`} pointerEvents="none">
-                    <g className="map-cs" transform={`scale(${csScale(k)})`}>
-                    <g transform={`translate(0,${has ? 24 : 0})`}>
+                    <g className="map-cs" transform={`scale(${s})`}>
+                    <g transform={`translate(0,${dy})`}>
                     <text
                       textAnchor="middle"
                       className="font-zh"
@@ -553,16 +576,12 @@ export function ChinaMap({
                     <circle cy={-13} r={2.3} fill="white" pointerEvents="none" />
                   )}
                   {/* 그 자리의 차 이름 (누르면 차 정보) */}
-                  {[
-                    ...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko, ko: t.name_zh ? t.name_ko : "" })),
-                    ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "" }] : []),
-                  ].map(
-                      ({ id, label, ko }, i, all) => (
+                  {p.lines.map(
+                      ({ id, label, ko }, i) => (
                         <text
                           key={id || "more"}
                           x={9}
-                          // 한글 이름이 있는 줄은 두 줄을 차지
-                          y={-9 + all.slice(0, i).reduce((s, a) => s + (a.ko ? 25 : 14), 0)}
+                          y={-9 + i * 14}
                           className={cn("font-zh", id && onTeaClick && "cursor-pointer hover:underline")}
                           pointerEvents={id && onTeaClick ? "auto" : "none"}
                           onClick={(e) => {
@@ -572,11 +591,7 @@ export function ChinaMap({
                           style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: id ? 600 : 400, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
                         >
                           {label}
-                          {ko && (
-                            <tspan x={9} dy={11.5} style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.8 }}>
-                              {ko}
-                            </tspan>
-                          )}
+                          {ko && <tspan style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.8 }}> {ko}</tspan>}
                         </text>
                       ),
                     )}
