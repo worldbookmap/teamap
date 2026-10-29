@@ -88,8 +88,10 @@
   --sidebar-ring: oklch(0.6 0.08 138);
 
   /* 지도 */
-  --map-sea: oklch(0.95 0.018 190);
+  --map-sea: oklch(0.87 0.05 230);
   --map-land: oklch(0.985 0.01 85);
+  --map-world: oklch(0.91 0.04 135); /* 중국 밖 육지 */
+  --map-world-stroke: oklch(0.8 0.045 135);
   --map-land-hover: oklch(0.93 0.035 120);
   --map-stroke: oklch(0.78 0.03 70);
   --map-label: oklch(0.42 0.03 55);
@@ -137,8 +139,10 @@
   --sidebar-border: oklch(0.34 0.022 60);
   --sidebar-ring: oklch(0.6 0.09 130);
 
-  --map-sea: oklch(0.22 0.02 200);
+  --map-sea: oklch(0.23 0.045 240);
   --map-land: oklch(0.27 0.02 60);
+  --map-world: oklch(0.29 0.035 140);
+  --map-world-stroke: oklch(0.36 0.04 140);
   --map-land-hover: oklch(0.34 0.04 120);
   --map-stroke: oklch(0.42 0.025 65);
   --map-label: oklch(0.82 0.02 80);

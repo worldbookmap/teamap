@@ -9,7 +9,8 @@ import { Loader2, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_META } from "@/lib/categories";
-import { loadRegionShapes, type RegionFeature } from "@/lib/geo";
+import { loadLand, loadRegionShapes, type RegionFeature } from "@/lib/geo";
+import type { Feature, MultiPolygon } from "geojson";
 import { loadTowns, townPos, type TownFocus } from "@/lib/towns";
 import type { HanjaConverter } from "@/lib/hanja";
 import { CHINA } from "@/lib/regions";
@@ -158,6 +159,15 @@ export function ChinaMap({
   }, [features, width, height, viewCode]);
 
   const path = useMemo(() => (projection ? geoPath(projection) : null), [projection]);
+
+  // 바탕에 까는 중국 밖 육지
+  const [land, setLand] = useState<Feature<MultiPolygon> | null>(null);
+  useEffect(() => {
+    loadLand()
+      .then(setLand)
+      .catch(() => {});
+  }, []);
+  const landPath = useMemo(() => (path && land ? (path(land) ?? "") : ""), [path, land]);
   const aroundPaths = useMemo(
     () => (path && around.view === viewCode ? around.features.map((f) => ({ code: f.properties.adcode, d: path(f) ?? "" })) : []),
     [path, around, viewCode],
@@ -375,6 +385,9 @@ export function ChinaMap({
             </defs>
             {/* transform 은 확대 핸들러가 직접 씁니다 (React 가 덮어쓰지 않도록 prop 으로 주지 않음) */}
             <g ref={zoomGRef}>
+              {landPath && (
+                <path d={landPath} pointerEvents="none" vectorEffect="non-scaling-stroke" style={{ fill: "var(--map-world)", stroke: "var(--map-world-stroke)", strokeWidth: 0.6 }} />
+              )}
               {/* 주변 지역 (연하게, 누를 수 없음) */}
               <g pointerEvents="none">
                 {aroundPaths.map(({ code, d }) => (

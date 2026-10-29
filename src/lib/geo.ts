@@ -27,6 +27,22 @@ function fixWinding(f: RegionFeature): RegionFeature {
   return { ...f, geometry: { ...g, coordinates: g.coordinates.map(fixPolygon) } };
 }
 
+let landCache: Promise<Feature<MultiPolygon>> | null = null;
+
+/** 중국 주변 육지 (public/geo/land.json, scripts/fetch-land.mjs 로 생성) */
+export function loadLand(): Promise<Feature<MultiPolygon>> {
+  if (!landCache) {
+    landCache = fetch("/geo/land.json")
+      .then((r) => {
+        if (!r.ok) throw new Error(`land: ${r.status}`);
+        return r.json() as Promise<Topology>;
+      })
+      .then((topo) => feature(topo, topo.objects.land) as unknown as Feature<MultiPolygon>);
+    landCache.catch(() => (landCache = null));
+  }
+  return landCache;
+}
+
 /** public/geo/{adcode}.json (scripts/fetch-geo.mjs 로 생성) 의 하위 구역 경계 */
 export function loadRegionShapes(adcode: string): Promise<RegionFeature[]> {
   let p = cache.get(adcode);
