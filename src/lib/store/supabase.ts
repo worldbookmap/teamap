@@ -50,6 +50,11 @@ function withoutDefaultProductFields<T extends Partial<TeaInput>>(input: T): T {
   return out;
 }
 
+/** 무료 플랜이 쉬는 상태로 잠기지 않도록 가벼운 조회 한 번 (하루 한 번 cron 에서 호출) */
+export async function pingSupabase() {
+  check(await db().from(TABLE).select("id").limit(1));
+}
+
 export const supabaseStore: TeaStore = {
   kind: "supabase",
 
