@@ -32,6 +32,8 @@ interface Props {
   onTownClick?: (town: TownFocus) => void;
   /** 더 나눌 수 없는 구역(현·구)을 길게 눌렀을 때 그 위치 (없으면 길게 누르기 꺼짐) */
   onLongPress?: (adcode: string, lngLat: [number, number]) => void;
+  /** 세부 산지 핀의 차 이름을 눌렀을 때 */
+  onTeaClick?: (teaId: string) => void;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
@@ -80,6 +82,7 @@ export function ChinaMap({
   onTownClick,
   onRegionClick,
   onLongPress,
+  onTeaClick,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -148,14 +151,14 @@ export function ChinaMap({
     [teas, viewCode],
   );
 
-  /** 세부 산지 위치 핀 (전국 지도에서는 너무 빽빽해 생략) */
+  /** 세부 산지 위치 핀 */
   const pins = useMemo(() => {
-    if (!projection || viewCode === CHINA) return [];
+    if (!projection) return [];
     const m = new Map<string, { x: number; y: number; zh: string; ko: string; teas: Tea[] }>();
     for (const t of teas) {
       for (const o of t.origins) {
         const d = o.detail;
-        if (!d || d.lng == null || d.lat == null || !o.path.includes(viewCode)) continue;
+        if (!d || d.lng == null || d.lat == null || (viewCode !== CHINA && !o.path.includes(viewCode))) continue;
         const key = `${d.lng},${d.lat}`;
         const pt = projection([d.lng, d.lat]);
         if (!pt) continue;
@@ -166,7 +169,6 @@ export function ChinaMap({
     }
     return [...m.values()];
   }, [teas, projection, viewCode]);
-  const countyView = features[0]?.properties.level === "district";
 
   // 현·구가 보이는 지도에서는 향·진 위치를 점으로 (OpenStreetMap 기준, 일부만 위치가 있음)
   const [towns, setTowns] = useState<{ view: string; list: (TownFocus & { x: number; y: number })[] }>({
@@ -533,19 +535,39 @@ export function ChinaMap({
                     animate={{ scale: 1, y: 0 }}
                     transition={{ type: "spring", stiffness: 420, damping: 20, delay: 0.25 }}
                     style={{ fill: CATEGORY_META[p.teas[0].category].color, stroke: "white", strokeWidth: 1.2 }}
+                    className={onTeaClick ? "cursor-pointer" : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onTeaClick?.(p.teas[0].id);
+                    }}
                   />
-                  <circle cy={-13} r={2.3} fill="white" pointerEvents="none" />
-                  {(countyView || k >= 2.5) && (
-                    <text
-                      x={9}
-                      y={-9}
-                      className="font-zh"
-                      pointerEvents="none"
-                      style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: 600, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
-                    >
-                      {p.zh || p.ko}
+                  {p.teas.length > 1 ? (
+                    <text y={-13} textAnchor="middle" dy="0.36em" fill="white" pointerEvents="none" style={{ fontSize: 8.5, fontWeight: 700 }}>
+                      {p.teas.length}
                     </text>
+                  ) : (
+                    <circle cy={-13} r={2.3} fill="white" pointerEvents="none" />
                   )}
+                  {/* 그 자리의 차 이름 (누르면 차 정보) */}
+                  {(viewCode !== CHINA || k >= 2.5) &&
+                    [...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko })), ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종` }] : [])].map(
+                      ({ id, label }, i) => (
+                        <text
+                          key={id || "more"}
+                          x={9}
+                          y={-9 + i * 13}
+                          className={cn("font-zh", id && onTeaClick && "cursor-pointer hover:underline")}
+                          pointerEvents={id && onTeaClick ? "auto" : "none"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (id) onTeaClick?.(id);
+                          }}
+                          style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: id ? 600 : 400, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
+                        >
+                          {label}
+                        </text>
+                      ),
+                    )}
                   </g>
                 </g>
               ))}

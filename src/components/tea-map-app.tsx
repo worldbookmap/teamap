@@ -296,6 +296,7 @@ export function TeaMapApp() {
               setFocusTown(t);
             }}
             onLongPress={admin ? onMapLongPress : undefined}
+            onTeaClick={setDetailId}
           />
 
           <div className="absolute top-3 right-3 z-20">
