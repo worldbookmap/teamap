@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, 
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { Landing } from "@/components/landing";
 import { ChinaMap } from "@/components/map/china-map";
 import { RegionSearch } from "@/components/map/region-search";
 import { TownCard } from "@/components/map/town-card";
@@ -76,6 +77,8 @@ export function TeaMapApp() {
   const [editingMap, setEditingMap] = useState<RegionMap | null>(null);
   /** 목록에서 연 지도면 닫을 때 목록으로 돌아감 */
   const [viewFromList, setViewFromList] = useState(false);
+  /** 시작 화면 (업데이트 내용) */
+  const [landing, setLanding] = useState(true);
 
   const refreshMe = useCallback(() => api.me().then(setMe).catch(() => setMe(null)), []);
 
@@ -276,6 +279,7 @@ export function TeaMapApp() {
 
   return (
     <div className="paper-grain flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
+      <AnimatePresence>{landing && <Landing onEnter={() => setLanding(false)} />}</AnimatePresence>
       <Header
         admin={admin}
         me={me}
