@@ -166,7 +166,18 @@ export function TeaMapApp() {
     [topTeas, cats, drunkOnly, summaries, matchesFamily],
   );
   const regionCode = focusCode ?? viewCode;
-  const inRegion = useMemo(() => teasInRegion(filtered, regionCode), [filtered, regionCode]);
+  /** 목록 순서: 다류 순으로 묶고, 다류 안에서는 최근에 고친 차(제품 수정 포함)가 먼저 */
+  const inRegion = useMemo(() => {
+    const updated = (t: Tea) =>
+      [t, ...(productsOf.get(t.id) ?? [])].reduce((max, x) => (x.updated_at > max ? x.updated_at : max), "");
+    return teasInRegion(filtered, regionCode)
+      .map((t) => ({ t, at: updated(t) }))
+      .sort(
+        (a, b) =>
+          TEA_CATEGORIES.indexOf(a.t.category) - TEA_CATEGORIES.indexOf(b.t.category) || b.at.localeCompare(a.at),
+      )
+      .map(({ t }) => t);
+  }, [filtered, regionCode, productsOf]);
   const counts = useMemo(
     () => categoryCounts(teasInRegion(topTeas.filter(matchesFamily), regionCode)),
     [topTeas, matchesFamily, regionCode],
