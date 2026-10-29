@@ -529,7 +529,7 @@ export function ChinaMap({
               {pins.map((p) => (
                 <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y})`}>
                   <g className="map-cs" transform={`scale(${1 / k})`}>
-                  <title>{`${p.zh || p.ko || "이름 없는 위치"}\n${p.teas.map((t) => t.name_zh || t.name_ko).join(", ")}`}</title>
+                  <title>{`${[p.zh, p.ko].filter(Boolean).join(" ") || "이름 없는 위치"}\n${p.teas.map((t) => [t.name_zh, t.name_ko].filter(Boolean).join(" ")).join(", ")}`}</title>
                   <motion.path
                     d="M0 0 C -5 -7 -6.5 -10 -6.5 -13 A 6.5 6.5 0 1 1 6.5 -13 C 6.5 -10 5 -7 0 0 Z"
                     initial={{ scale: 0, y: -6 }}
@@ -550,8 +550,11 @@ export function ChinaMap({
                     <circle cy={-13} r={2.3} fill="white" pointerEvents="none" />
                   )}
                   {/* 그 자리의 차 이름 (누르면 차 정보) */}
-                  {[...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko })), ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종` }] : [])].map(
-                      ({ id, label }, i) => (
+                  {[
+                    ...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko, ko: t.name_zh ? t.name_ko : "" })),
+                    ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "" }] : []),
+                  ].map(
+                      ({ id, label, ko }, i) => (
                         <text
                           key={id || "more"}
                           x={9}
@@ -565,6 +568,7 @@ export function ChinaMap({
                           style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: id ? 600 : 400, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
                         >
                           {label}
+                          {ko && <tspan style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.8 }}> {ko}</tspan>}
                         </text>
                       ),
                     )}
