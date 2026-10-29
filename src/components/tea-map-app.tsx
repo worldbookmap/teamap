@@ -342,9 +342,11 @@ export function TeaMapApp() {
                   {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
                   <button
                     onClick={() => (code === regionCode ? null : goTo(code))}
-                    className={cn("rounded px-1 font-zh hover:bg-muted", code === regionCode && "font-semibold text-primary")}
+                    className={cn("rounded px-1 hover:bg-muted", code === regionCode && "font-semibold text-primary")}
                   >
-                    {regionName(code)}
+                    {/* 한글 독음을 먼저, 한자는 작게 */}
+                    {code === CHINA ? "중국" : (conv?.toHangul(regionName(code)) ?? "")}
+                    <span className="ml-1 font-zh text-xs font-normal text-muted-foreground">{regionName(code)}</span>
                   </button>
                 </li>
               ))}
