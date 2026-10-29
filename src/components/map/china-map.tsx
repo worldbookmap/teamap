@@ -171,9 +171,11 @@ export function ChinaMap({
       }
     }
     return [...m.values()].map((p) => {
+      // 장소 이름이 있으면 맨 위 줄에
       const lines = [
-        ...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko, ko: t.name_zh ? t.name_ko : "" })),
-        ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "" }] : []),
+        ...(p.zh || p.ko ? [{ id: "", label: p.zh || p.ko, ko: p.zh ? p.ko : "", place: true }] : []),
+        ...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko, ko: t.name_zh ? t.name_ko : "", place: false })),
+        ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "", place: false }] : []),
       ];
       // 핀과 차 이름이 차지하는 대략의 영역 (핀 끝 기준, 화면 px) — 지명과 겹치는지 볼 때 씀
       const w = Math.max(...lines.map((l) => l.label.length * 10.5 + (l.ko ? 4 + l.ko.length * 9.5 : 0)));
@@ -577,9 +579,9 @@ export function ChinaMap({
                   )}
                   {/* 그 자리의 차 이름 (누르면 차 정보) */}
                   {p.lines.map(
-                      ({ id, label, ko }, i) => (
+                      ({ id, label, ko, place }, i) => (
                         <text
-                          key={id || "more"}
+                          key={id || (place ? "place" : "more")}
                           x={9}
                           y={-9 + i * 14}
                           className={cn("font-zh", id && onTeaClick && "cursor-pointer hover:underline")}
@@ -588,7 +590,7 @@ export function ChinaMap({
                             e.stopPropagation();
                             if (id) onTeaClick?.(id);
                           }}
-                          style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: id ? 600 : 400, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
+                          style={{ fill: place ? "var(--seal)" : "var(--map-label)", fontSize: 10.5, fontWeight: place ? 700 : id ? 600 : 400, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
                         >
                           {label}
                           {ko && <tspan style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.8 }}> {ko}</tspan>}
