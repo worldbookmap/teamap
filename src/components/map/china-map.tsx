@@ -1,6 +1,6 @@
 "use client";
 
-import { geoCentroid, geoConicEqualArea, geoPath, type GeoPermissibleObjects } from "d3-geo";
+import { geoBounds, geoCentroid, geoConicEqualArea, geoPath, type GeoPermissibleObjects } from "d3-geo";
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
@@ -38,18 +38,15 @@ interface Props {
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
 const FIT_EXCLUDE = new Set(["460300", "100000_JD"]);
-const MAINLAND: GeoPermissibleObjects = {
-  type: "Polygon",
-  coordinates: [
-    [
-      [73, 17.5],
-      [73, 53.8],
-      [135.2, 53.8],
-      [135.2, 17.5],
-      [73, 17.5],
-    ],
-  ],
-};
+
+/** 전국 지도에 맞출 모양: 실제 육지 (북위 17.5° 아래로만 있는 남해 섬들은 뺌) */
+function mainland(features: RegionFeature[]): GeoPermissibleObjects {
+  const polys = features
+    .filter((f) => !f.properties.adcode.includes("_"))
+    .flatMap((f) => (f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates))
+    .filter((coordinates) => geoBounds({ type: "Polygon", coordinates })[1][1] >= 17.5);
+  return { type: "MultiPolygon", coordinates: polys };
+}
 
 const NO_FEATURES: RegionFeature[] = [];
 
@@ -118,10 +115,11 @@ export function ChinaMap({
     if (!features.length || !width) return null;
     const fitTarget: GeoPermissibleObjects =
       viewCode === CHINA
-        ? MAINLAND
+        ? mainland(features)
         : { type: "FeatureCollection", features: features.filter((f) => !FIT_EXCLUDE.has(f.properties.adcode)) };
     const [lon, lat] = geoCentroid(fitTarget);
-    const pad = Math.min(width, height) * 0.06 + 12;
+    // 전국 지도는 여백을 줄여 꽉 차게
+    const pad = viewCode === CHINA ? Math.min(width, height) * 0.02 + 6 : Math.min(width, height) * 0.06 + 12;
     return geoConicEqualArea()
       .rotate([-lon, 0])
       .parallels([lat - 6, lat + 6])
@@ -170,7 +168,11 @@ export function ChinaMap({
         m.set(key, cur);
       }
     }
+    // 이름은 시(지구)를 눌러 한 단계 더 들어갔을 때부터 (성 지도에서는 핀만).
+    // 직할시처럼 성에서 바로 구가 나오는 곳은 처음부터
+    const named = !/0000$/.test(viewCode) || features[0]?.properties.level === "district";
     return [...m.values()].map((p) => {
+      if (!named) return { ...p, lines: [], box: { left: -8, right: 8, top: -22, bottom: 0 } };
       // 장소 이름이 있으면 맨 위 줄에
       const lines = [
         ...(p.zh || p.ko ? [{ id: "", label: p.zh || p.ko, ko: p.zh ? p.ko : "", place: true }] : []),
@@ -181,7 +183,7 @@ export function ChinaMap({
       const w = Math.max(...lines.map((l) => l.label.length * 10.5 + (l.ko ? 4 + l.ko.length * 9.5 : 0)));
       return { ...p, lines, box: { left: -8, right: 9 + w, top: -22, bottom: -9 + (lines.length - 1) * 14 + 4 } };
     });
-  }, [teas, projection, viewCode]);
+  }, [teas, projection, viewCode, features]);
 
   // 현·구가 보이는 지도에서는 향·진 위치를 점으로 (OpenStreetMap 기준, 일부만 위치가 있음)
   const [towns, setTowns] = useState<{ view: string; list: (TownFocus & { x: number; y: number })[] }>({
