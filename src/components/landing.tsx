@@ -3,6 +3,7 @@
 import { ArrowRight, Leaf } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMemo, useSyncExternalStore } from "react";
+import { CLUB, ClubFollowButton } from "@/components/club";
 import { LandingBackdrop } from "@/components/landing-backdrop";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -64,8 +65,8 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
         >
           <div className="relative">
             <motion.img
-              src="/teaggle.jpg"
-              alt="Teaggle Club"
+              src={CLUB.logo}
+              alt={CLUB.en}
               width={72}
               height={72}
               className="size-18 rounded-full bg-white object-cover shadow-md ring-4 ring-card/80"
@@ -77,6 +78,18 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
           </div>
           <h1 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">중국 차 지도</h1>
           <p className="mt-1 font-zh text-sm tracking-[0.5em] text-muted-foreground">中國茶地圖</p>
+          {/* 운영 클럽 */}
+          <a
+            href={CLUB.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-full border border-seal/25 bg-card/70 py-1 pr-3.5 pl-1 text-sm shadow-sm backdrop-blur transition hover:border-seal/50"
+          >
+            <span className="rounded-full bg-seal px-2 py-0.5 text-[11px] font-semibold text-white">운영</span>
+            <span>
+              <b className="font-semibold text-seal">{CLUB.name}</b> <span className="font-medium">{CLUB.en}</span>
+            </span>
+          </a>
         </motion.header>
 
         {entries.map((entry, n) => (
@@ -126,6 +139,30 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
             지도 보러 가기 <ArrowRight />
           </Button>
         </motion.div>
+
+        {/* 운영 클럽 소개 */}
+        <motion.aside
+          className="mt-8 flex flex-col items-center gap-4 rounded-2xl border border-seal/20 bg-[color-mix(in_oklch,var(--seal)_7%,var(--card))]/85 p-5 text-center shadow-sm backdrop-blur-md sm:flex-row sm:text-left"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <motion.img
+            src={CLUB.logo}
+            alt=""
+            width={64}
+            height={64}
+            className="size-16 shrink-0 rounded-full bg-white object-cover shadow-sm ring-2 ring-seal/30"
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs tracking-wider text-muted-foreground">이 지도를 운영하는 차 모임</p>
+            <p className="mt-0.5 font-heading text-xl font-bold">
+              <span className="text-seal">{CLUB.name}</span> {CLUB.en}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">새 소식은 인스타그램에서 만나요.</p>
+          </div>
+          <ClubFollowButton />
+        </motion.aside>
       </div>
     </motion.div>
   );

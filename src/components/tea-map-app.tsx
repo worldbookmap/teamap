@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, 
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CLUB, ClubFollowButton } from "@/components/club";
 import { formatDate, Landing, markUpdatesSeen, useUnseenUpdates } from "@/components/landing";
 import { CHANGELOG, type ChangelogEntry } from "@/data/changelog";
 import { ChinaMap } from "@/components/map/china-map";
@@ -693,7 +694,13 @@ function Header({
         />
         <div className="leading-tight">
           <h1 className="font-heading text-lg font-bold whitespace-nowrap">중국 차 지도</h1>
-          <p className="font-zh text-xs tracking-[0.3em] whitespace-nowrap text-muted-foreground">中國茶地圖</p>
+          <p className="text-xs whitespace-nowrap text-muted-foreground">
+            <span className="font-zh tracking-[0.3em]">中國茶地圖</span>
+            <span className="hidden sm:inline">
+              <span className="mx-1.5 text-border">·</span>
+              <b className="font-semibold text-seal">{CLUB.name}</b> {CLUB.en}
+            </span>
+          </p>
         </div>
       </button>
 
@@ -802,37 +809,31 @@ function Legend() {
 
 function Footer() {
   return (
-    <footer className="flex shrink-0 flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t bg-card/70 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] text-xs text-muted-foreground backdrop-blur">
-      <span>
-        만든이 <b className="font-medium text-foreground">고릴라닷컴</b>
-      </span>
-      <span aria-hidden className="text-border">
-        |
-      </span>
-      <span className="flex items-center gap-1">
-        운영하는이
-        <a
-          href="https://instagram.com/teaggle.club"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:text-seal hover:underline"
-        >
-          <InstagramGlyph className="size-3.5" />
-          티끌
-          <span className="text-muted-foreground">@teaggle.club</span>
+    <footer className="shrink-0 border-t bg-card/70 px-4 pt-2.5 pb-[calc(0.6rem+env(safe-area-inset-bottom))] backdrop-blur">
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-between">
+        {/* 운영 클럽 */}
+        <a href={CLUB.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2.5">
+          <motion.img
+            src={CLUB.logo}
+            alt=""
+            width={32}
+            height={32}
+            className="size-8 rounded-full bg-white object-cover ring-2 ring-seal/25 transition group-hover:ring-seal/60"
+          />
+          <span className="leading-tight">
+            <span className="block text-[10px] tracking-wider text-muted-foreground">이 지도를 운영하는 차 모임</span>
+            <span className="text-sm font-semibold">
+              <span className="text-seal">{CLUB.name}</span> {CLUB.en}
+            </span>
+          </span>
         </a>
-      </span>
+        <div className="flex items-center gap-3">
+          <ClubFollowButton size="sm" />
+          <span className="text-[11px] text-muted-foreground">
+            만든이 <b className="font-medium text-foreground">고릴라닷컴</b>
+          </span>
+        </div>
+      </div>
     </footer>
-  );
-}
-
-/** 인스타그램 모양 아이콘 (lucide 에는 브랜드 아이콘이 없어 직접 그림) */
-function InstagramGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" className={className} aria-hidden>
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor" />
-    </svg>
   );
 }
