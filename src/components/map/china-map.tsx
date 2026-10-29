@@ -68,8 +68,8 @@ function useSize<T extends HTMLElement>() {
 
 const LONG_PRESS_MS = 650;
 
-/** 확대 배율 k 에서 글자·표식에 줄 배율: 지도만큼은 아니어도 확대할수록 커짐 (k=2 → 1.2배, k=8 → 1.9배) */
-const csScale = (k: number) => k ** -0.7;
+/** 확대 배율 k 에서 글자·표식에 줄 배율: 지도만큼은 아니어도 확대할수록 커짐 (k=2 → 1.2배, k=8 → 1.9배). 축소할 때는 크기 그대로 */
+const csScale = (k: number) => (k < 1 ? 1 / k : k ** -0.7);
 
 export function ChinaMap({
   viewCode,
@@ -257,7 +257,8 @@ export function ChinaMap({
   useEffect(() => {
     if (!svgEl) return;
     const z = d3zoom<SVGSVGElement, unknown>()
-      .scaleExtent([1, 14])
+      // 세부 지도에서는 주변 지역이 보이도록 처음보다 더 축소할 수 있게
+      .scaleExtent([viewCode === CHINA ? 1 : 0.2, 14])
       .on("start", () => {
         svgEl.dataset.zooming = "1";
       })
