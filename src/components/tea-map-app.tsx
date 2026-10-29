@@ -1,11 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, Sun } from "lucide-react";
+import { ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, Sparkles, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Landing } from "@/components/landing";
+import { formatDate, Landing, markUpdatesSeen, useUnseenUpdates } from "@/components/landing";
+import { CHANGELOG, type ChangelogEntry } from "@/data/changelog";
 import { ChinaMap } from "@/components/map/china-map";
 import { RegionSearch } from "@/components/map/region-search";
 import { TownCard } from "@/components/map/town-card";
@@ -78,7 +79,11 @@ export function TeaMapApp() {
   /** 목록에서 연 지도면 닫을 때 목록으로 돌아감 */
   const [viewFromList, setViewFromList] = useState(false);
   /** 시작 화면 (업데이트 내용) */
-  const [landing, setLanding] = useState(true);
+  // 새 업데이트가 있을 때만 시작 화면을 띄움 (본 기록은 이 브라우저에만 저장). 헤더 버튼으로 다시 열기
+  const unseen = useUnseenUpdates();
+  const [landingDismissed, setLandingDismissed] = useState(false);
+  const [landingManual, setLandingManual] = useState<ChangelogEntry[] | null>(null);
+  const landing = landingManual ?? (!landingDismissed && unseen.length ? unseen : null);
 
   const refreshMe = useCallback(() => api.me().then(setMe).catch(() => setMe(null)), []);
 
@@ -279,7 +284,18 @@ export function TeaMapApp() {
 
   return (
     <div className="paper-grain flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
-      <AnimatePresence>{landing && <Landing onEnter={() => setLanding(false)} />}</AnimatePresence>
+      <AnimatePresence>
+        {landing && (
+          <Landing
+            entries={landing}
+            onEnter={() => {
+              markUpdatesSeen();
+              setLandingDismissed(true);
+              setLandingManual(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
       <Header
         admin={admin}
         me={me}
@@ -292,6 +308,7 @@ export function TeaMapApp() {
         drunkCount={tastings.length}
         onTimeline={() => setTimelineOpen(true)}
         onHome={goHome}
+        onUpdates={() => setLandingManual(CHANGELOG.slice(0, 3))}
       />
 
       <main className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -647,6 +664,7 @@ function Header({
   drunkCount,
   onTimeline,
   onHome,
+  onUpdates,
 }: {
   admin: boolean;
   me: Me | null;
@@ -656,6 +674,7 @@ function Header({
   drunkCount: number;
   onTimeline: () => void;
   onHome: () => void;
+  onUpdates: () => void;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   return (
@@ -677,8 +696,8 @@ function Header({
           className="size-10 shrink-0 rounded-full bg-white object-cover shadow-sm ring-1 ring-border"
         />
         <div className="leading-tight">
-          <h1 className="font-heading text-lg font-bold">중국 차 지도</h1>
-          <p className="font-zh text-xs tracking-[0.3em] text-muted-foreground">中國茶地圖</p>
+          <h1 className="font-heading text-lg font-bold whitespace-nowrap">중국 차 지도</h1>
+          <p className="font-zh text-xs tracking-[0.3em] whitespace-nowrap text-muted-foreground">中國茶地圖</p>
         </div>
       </button>
 
@@ -692,6 +711,21 @@ function Header({
             </TooltipTrigger>
             <TooltipContent>Supabase 미설정 — .data/ 폴더에 저장 중</TooltipContent>
           </Tooltip>
+        )}
+        {CHANGELOG[0] && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="gap-1 px-1.5 sm:px-2.5"
+            onClick={onUpdates}
+            aria-label={`${formatDate(CHANGELOG[0].date)} 업데이트 보기`}
+          >
+            <Sparkles className="text-seal" />
+            <span className="text-xs text-muted-foreground">
+              {CHANGELOG[0].date.slice(5).replace("-", ".")}
+              <span className="hidden sm:inline"> 업데이트</span>
+            </span>
+          </Button>
         )}
         <Button size="sm" variant="outline" onClick={onTimeline}>
           <CupSoda /> <span className="hidden sm:inline">마신 기록</span>
@@ -717,8 +751,8 @@ function Header({
               <LogOut />
             </Button>
           ) : (
-            <Button size="sm" variant="ghost" onClick={onLogin}>
-              <LogIn /> 관리자
+            <Button size="sm" variant="ghost" onClick={onLogin} aria-label="관리자 로그인">
+              <LogIn /> <span className="hidden sm:inline">관리자</span>
             </Button>
           ))}
       </div>
