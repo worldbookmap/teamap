@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, Leaf } from "lucide-react";
+import { ArrowRight, ChevronDown, Leaf } from "lucide-react";
 import { motion } from "framer-motion";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { CLUB, ClubFollowButton } from "@/components/club";
 import { LandingBackdrop } from "@/components/landing-backdrop";
 import { Button } from "@/components/ui/button";
@@ -44,8 +44,10 @@ export function markUpdatesSeen() {
   } catch {}
 }
 
-/** 시작 화면: 업데이트 내용을 보여 주고 지도로 넘어갑니다 */
+/** 시작 화면: 업데이트 내용을 보여 주고 지도로 넘어갑니다 (이전 업데이트는 더보기로) */
 export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnter: () => void }) {
+  const [showOlder, setShowOlder] = useState(false);
+  const shown = showOlder ? entries : entries.slice(0, 1);
   return (
     <motion.div
       className="fixed inset-0 z-50 overflow-y-auto bg-background"
@@ -92,7 +94,7 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
           </a>
         </motion.header>
 
-        {entries.map((entry, n) => (
+        {shown.map((entry, n) => (
           <motion.section
             key={entry.date}
             className={cn(
@@ -101,7 +103,7 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
             )}
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.12 + n * 0.08, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.55, delay: n === 0 ? 0.12 : (n - 1) * 0.08, ease: [0.22, 1, 0.36, 1] }}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-heading text-lg font-semibold">{n === 0 ? "새로워진 점" : "이전 업데이트"}</h2>
@@ -128,6 +130,14 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
             </ul>
           </motion.section>
         ))}
+
+        {!showOlder && entries.length > 1 && (
+          <div className="mt-3 flex justify-center">
+            <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={() => setShowOlder(true)}>
+              이전 업데이트 더보기 <ChevronDown />
+            </Button>
+          </div>
+        )}
 
         <motion.div
           className="mt-6 flex justify-center"

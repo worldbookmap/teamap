@@ -317,7 +317,7 @@ export function TeaMapApp() {
         drunkCount={tastings.length}
         onTimeline={() => setTimelineOpen(true)}
         onHome={goHome}
-        onUpdates={() => setLandingManual(CHANGELOG.slice(0, 3))}
+        onUpdates={() => setLandingManual(CHANGELOG)}
       />
 
       <main className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
