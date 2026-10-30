@@ -9,6 +9,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-30",
+    items: [
+      "처음 열 때 지도와 차 목록을 불러오는 동안 '불러오는 중' 표시가 나와요.",
+    ],
+  },
+  {
     date: "2026-10-29",
     items: [
       "지도를 길게 눌러 등록한 차는 그 자리에 핀으로 표시돼요. 핀 옆에 장소 이름과 차 이름(한자·한글)이 나오고, 누르면 차 정보가 열려요.",

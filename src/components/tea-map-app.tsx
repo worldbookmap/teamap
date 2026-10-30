@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, LogIn, LogOut, Moon, Plus, Search, Sparkles, Sun } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, Loader2, LogIn, LogOut, Moon, Plus, Search, Sparkles, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -338,6 +338,7 @@ export function TeaMapApp() {
             }}
             onLongPress={admin ? onMapLongPress : undefined}
             onTeaClick={setDetailId}
+            loading={loading}
           />
 
           <div className="absolute top-3 right-3 z-20">
@@ -528,18 +529,21 @@ export function TeaMapApp() {
                   </li>
                 )}
               </motion.ul>
+            ) : loading ? (
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground" role="status">
+                <Loader2 className="size-4 animate-spin" />
+                차 목록을 불러오는 중…
+              </div>
             ) : (
-              !loading && (
-                <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
-                  <span className="font-zh text-5xl text-border">茶</span>
-                  <p>{query || cats.size || drunkOnly ? "조건에 맞는 차가 없습니다." : "이 지역에 등록된 차가 없습니다."}</p>
-                  {admin && (
-                    <Button size="sm" variant="outline" onClick={openNewTea}>
-                      <Plus /> 이 지역에 차 등록
-                    </Button>
-                  )}
-                </div>
-              )
+              <div className="flex flex-col items-center gap-3 py-12 text-center text-sm text-muted-foreground">
+                <span className="font-zh text-5xl text-border">茶</span>
+                <p>{query || cats.size || drunkOnly ? "조건에 맞는 차가 없습니다." : "이 지역에 등록된 차가 없습니다."}</p>
+                {admin && (
+                  <Button size="sm" variant="outline" onClick={openNewTea}>
+                    <Plus /> 이 지역에 차 등록
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </aside>

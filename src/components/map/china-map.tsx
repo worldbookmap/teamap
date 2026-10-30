@@ -35,6 +35,8 @@ interface Props {
   onLongPress?: (adcode: string, lngLat: [number, number]) => void;
   /** 세부 산지 핀의 차 이름을 눌렀을 때 */
   onTeaClick?: (teaId: string) => void;
+  /** 차 목록을 아직 불러오는 중 */
+  loading?: boolean;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
@@ -84,6 +86,7 @@ export function ChinaMap({
   onRegionClick,
   onLongPress,
   onTeaClick,
+  loading,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -681,10 +684,29 @@ export function ChinaMap({
       </AnimatePresence>
 
       {(!ready || !path) && !error && (
-        <div className="absolute inset-0 grid place-items-center text-muted-foreground">
-          <Loader2 className="size-6 animate-spin" />
+        <div className="absolute inset-0 grid place-items-center text-muted-foreground" role="status">
+          <div className="flex flex-col items-center gap-2 text-sm">
+            <Loader2 className="size-6 animate-spin" />
+            지도를 불러오는 중…
+          </div>
         </div>
       )}
+      {/* 지도는 그려졌지만 차 정보가 아직일 때 */}
+      <AnimatePresence>
+        {ready && path && loading && !error && (
+          <motion.div
+            key="loading"
+            role="status"
+            className="pointer-events-none absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full border bg-card/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            <Loader2 className="size-3.5 animate-spin" />
+            차 정보를 불러오는 중…
+          </motion.div>
+        )}
+      </AnimatePresence>
       {error && <div className="absolute inset-0 grid place-items-center text-sm text-destructive">{error}</div>}
 
       {/* 툴팁 */}
