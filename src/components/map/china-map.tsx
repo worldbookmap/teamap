@@ -1,6 +1,6 @@
 "use client";
 
-import { geoBounds, geoCentroid, geoConicEqualArea, geoPath, type GeoPermissibleObjects } from "d3-geo";
+import { geoBounds, geoCentroid, geoConicEqualArea, geoContains, geoPath, type GeoPermissibleObjects } from "d3-geo";
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
@@ -40,8 +40,10 @@ interface Props {
   /** TV·프로젝터용 전체 화면 (멀리서 읽히게 글자를 키움) */
   presenting?: boolean;
   onTogglePresent?: () => void;
-  /** 차 개수 표식을 눌렀을 때 (없으면 표식은 누를 수 없고 아래 구역이 눌림). self: 그 구역 자체로 등록된 차만 */
-  onCountClick?: (adcode: string, self?: boolean) => void;
+  /** 차 개수 표식을 눌렀을 때 (없으면 표식은 누를 수 없고 아래 구역이 눌림) */
+  onCountClick?: (adcode: string) => void;
+  /** 하위 구역 없이 지금 보는 구역 자체로 등록된 차의 표식·배지를 눌렀을 때 */
+  onSelfTeasClick?: (adcode: string) => void;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
@@ -98,6 +100,7 @@ export function ChinaMap({
   presenting,
   onTogglePresent,
   onCountClick,
+  onSelfTeasClick,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -285,6 +288,30 @@ export function ChinaMap({
       return { f, d: path(f) ?? "", area: path.area(f), x: pt[0], y: pt[1], label, labelKo: conv?.toHangul(label) ?? "" };
     });
   }, [features, path, projection, conv]);
+
+  /** 지금 보는 구역 자체로 등록된 차의 표식 위치: 지명과 가장 덜 겹치는 육지 (가운데에 가까울수록 좋음) */
+  const selfMarkerPos = useMemo(() => {
+    if (!selfTeas.length || !path || !projection?.invert) return null;
+    const land = shapesData.filter((s) => !s.f.properties.adcode.includes("_"));
+    if (!land.length) return null;
+    const target: GeoPermissibleObjects = { type: "FeatureCollection", features: land.map((s) => s.f) };
+    const [[x0, y0], [x1, y1]] = path.bounds(target);
+    const [cx, cy] = path.centroid(target);
+    const STEPS = 10;
+    let best: { x: number; y: number; score: number } | null = null;
+    for (let i = 0; i <= STEPS; i++) {
+      for (let j = 0; j <= STEPS; j++) {
+        const x = x0 + ((x1 - x0) * i) / STEPS;
+        const y = y0 + ((y1 - y0) * j) / STEPS;
+        const ll = projection.invert([x, y]);
+        if (!ll || !land.some((s) => geoContains(s.f, ll))) continue;
+        const gap = Math.min(...land.map((s) => Math.hypot(s.x - x, s.y - y)));
+        const score = Math.min(gap, 90) - Math.hypot(cx - x, cy - y) * 0.05;
+        if (!best || score > best.score) best = { x, y, score };
+      }
+    }
+    return best;
+  }, [selfTeas, path, projection, shapesData]);
 
   // 확대/이동
   useEffect(() => {
@@ -585,6 +612,49 @@ export function ChinaMap({
                 );
               })}
 
+              {/* 지금 보는 구역 자체로 등록된 차 (하위 구역 표식에는 잡히지 않음) */}
+              {selfMarkerPos && (
+                <motion.g
+                  key={`self-${viewCode}`}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 22, delay: 0.15 }}
+                  style={{ x: selfMarkerPos.x, y: selfMarkerPos.y }}
+                  pointerEvents="none"
+                >
+                  <g className={cn("map-cs", fade(!!focusShape))} transform={`scale(${cs(k)})`}>
+                    <g
+                      pointerEvents={onSelfTeasClick ? "auto" : "none"}
+                      className={onSelfTeasClick ? "cursor-pointer" : undefined}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelfTeasClick?.(viewCode);
+                      }}
+                    >
+                      <title>{`이 지역 전역으로 등록된 차 ${selfTeas.length}종`}</title>
+                      <circle
+                        r={13 + Math.min(selfTeas.length, 12) * 0.7}
+                        fill="none"
+                        stroke={CATEGORY_META[dominantCategory(selfTeas)!].color}
+                        strokeWidth={1.5}
+                        strokeDasharray="3 2.5"
+                      />
+                      <circle r={8 + Math.min(selfTeas.length, 12) * 0.7} fill={CATEGORY_META[dominantCategory(selfTeas)!].color} stroke="var(--map-land)" strokeWidth={2} />
+                      <text textAnchor="middle" dy="0.36em" fill="white" style={{ fontSize: 11, fontWeight: 700 }}>
+                        {selfTeas.length}
+                      </text>
+                      <text
+                        textAnchor="middle"
+                        y={30}
+                        style={{ fill: "var(--map-label)", fontSize: 10.5, fontWeight: 600, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3, strokeOpacity: 0.85 }}
+                      >
+                        전역
+                      </text>
+                    </g>
+                  </g>
+                </motion.g>
+              )}
+
               {/* 향·진 위치 */}
               {/* 선택한 현·구의 향·진이 위에 오도록 뒤에 그림 */}
               {[...townDots].sort((a, b) => Number(a.county === focusCode) - Number(b.county === focusCode)).map((t) => {
@@ -815,11 +885,11 @@ export function ChinaMap({
       {selfTeas.length > 0 && (
         <button
           type="button"
-          disabled={!onCountClick}
-          onClick={() => onCountClick?.(viewCode, true)}
+          disabled={!onSelfTeasClick}
+          onClick={() => onSelfTeasClick?.(viewCode)}
           className={cn(
-            "absolute top-14 left-3 rounded-full border bg-card/90 px-3 py-1 shadow-sm backdrop-blur",
-            onCountClick ? "cursor-pointer text-base hover:bg-muted" : "text-xs",
+            "absolute top-14 left-3 cursor-pointer rounded-full border bg-card/90 px-3 py-1 shadow-sm backdrop-blur hover:bg-muted",
+            presenting ? "text-base" : "text-xs",
           )}
         >
           이 지역 전역: <b>{selfTeas.length}종</b>

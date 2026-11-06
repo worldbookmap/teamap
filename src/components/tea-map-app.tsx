@@ -68,7 +68,7 @@ export function TeaMapApp() {
   const [loginOpen, setLoginOpen] = useState(false);
   /** TV·프로젝터용: 지도만 화면 가득 */
   const [presenting, setPresenting] = useState(false);
-  /** 전체 화면에서 차 개수 표식을 눌러 연 차 목록 (self: 그 구역 자체로 등록된 차만) */
+  /** 지도의 차 개수 표식을 눌러 연 차 목록 (self: 그 구역 자체로 등록된 차만) */
   const [countList, setCountList] = useState<{ code: string; self?: boolean } | null>(null);
 
   // 마신 기록
@@ -397,7 +397,8 @@ export function TeaMapApp() {
             loading={loading}
             presenting={presenting}
             onTogglePresent={togglePresent}
-            onCountClick={presenting ? (code, self) => setCountList({ code, self }) : undefined}
+            onCountClick={presenting ? (code) => setCountList({ code }) : undefined}
+            onSelfTeasClick={(code) => setCountList({ code, self: true })}
           />
 
           <div className="absolute top-3 right-3 z-20">
