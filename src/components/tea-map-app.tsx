@@ -65,6 +65,8 @@ export function TeaMapApp() {
   /** 지역 검색에서 고른 향·진 */
   const [focusTown, setFocusTown] = useState<TownFocus | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  /** TV·프로젝터용: 지도만 화면 가득 */
+  const [presenting, setPresenting] = useState(false);
 
   // 마신 기록
   const [tastings, setTastings] = useState<Tasting[]>([]);
@@ -258,6 +260,40 @@ export function TeaMapApp() {
   };
   const admin = !!me?.admin;
 
+  // 화면 크기가 크게 바뀌므로 확대 상태는 처음으로 되돌림
+  const stopPresenting = useCallback(() => {
+    setPresenting(false);
+    setMapResetKey((k) => k + 1);
+  }, []);
+  const togglePresent = () => {
+    if (presenting) {
+      stopPresenting();
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      return;
+    }
+    setPresenting(true);
+    setMapResetKey((k) => k + 1);
+    // 문서 전체를 전체 화면으로 (지도 칸만 올리면 차 정보 창이 그 뒤로 숨음).
+    // 지원하지 않는 기기(iPhone 등)에서는 브라우저 창 안에서만 지도를 꽉 채움
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+  useEffect(() => {
+    if (!presenting) return;
+    const onFullscreenChange = () => {
+      if (!document.fullscreenElement) stopPresenting();
+    };
+    // 전체 화면이 아닐 때는 브라우저가 Esc 를 처리하지 않음 (열린 창이 있으면 그 창부터 닫힘)
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !document.fullscreenElement && !document.querySelector('[role="dialog"]')) stopPresenting();
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [presenting, stopPresenting]);
+
   const openNewTea = () => {
     const origin = regionCode !== CHINA && regions && conv ? makeOrigin(regions, conv, regionCode) : null;
     setForm({ open: true, tea: null, origins: origin ? [origin] : [] });
@@ -292,7 +328,7 @@ export function TeaMapApp() {
   };
 
   return (
-    <div className="paper-grain flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden">
+    <div className={cn("paper-grain flex flex-col", presenting ? "h-dvh overflow-hidden" : "min-h-dvh lg:h-dvh lg:overflow-hidden")}>
       <AnimatePresence>
         {landing && (
           <Landing
@@ -305,24 +341,31 @@ export function TeaMapApp() {
           />
         )}
       </AnimatePresence>
-      <Header
-        admin={admin}
-        me={me}
-        onLogin={() => setLoginOpen(true)}
-        onLogout={async () => {
-          await api.logout();
-          refreshMe();
-        }}
-        onAdd={openNewTea}
-        drunkCount={tastings.length}
-        onTimeline={() => setTimelineOpen(true)}
-        onHome={goHome}
-        onUpdates={() => setLandingManual(CHANGELOG)}
-      />
+      {!presenting && (
+        <Header
+          admin={admin}
+          me={me}
+          onLogin={() => setLoginOpen(true)}
+          onLogout={async () => {
+            await api.logout();
+            refreshMe();
+          }}
+          onAdd={openNewTea}
+          drunkCount={tastings.length}
+          onTimeline={() => setTimelineOpen(true)}
+          onHome={goHome}
+          onUpdates={() => setLandingManual(CHANGELOG)}
+        />
+      )}
 
-      <main className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
+      <main className={cn("flex flex-1 flex-col lg:flex-row", presenting ? "min-h-0" : "lg:min-h-0")}>
         {/* 지도 */}
-        <section className="relative h-[52svh] shrink-0 border-b lg:h-auto lg:flex-1 lg:border-r lg:border-b-0">
+        <section
+          className={cn(
+            "relative",
+            presenting ? "min-h-0 flex-1" : "h-[52svh] shrink-0 border-b lg:h-auto lg:flex-1 lg:border-r lg:border-b-0",
+          )}
+        >
           <ChinaMap
             viewCode={viewCode}
             focusCode={focusCode}
@@ -334,11 +377,13 @@ export function TeaMapApp() {
             focusTown={focusTown}
             onTownClick={(t) => {
               setFocusCode(t.county);
-              setFocusTown(t);
+              setFocusTown((f) => (f?.code === t.code ? null : t));
             }}
             onLongPress={admin ? onMapLongPress : undefined}
             onTeaClick={setDetailId}
             loading={loading}
+            presenting={presenting}
+            onTogglePresent={togglePresent}
           />
 
           <div className="absolute top-3 right-3 z-20">
@@ -367,7 +412,12 @@ export function TeaMapApp() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <ol className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg border bg-card/90 px-2 py-1 text-sm shadow-sm backdrop-blur">
+            <ol
+              className={cn(
+                "flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-lg border bg-card/90 px-2 py-1 shadow-sm backdrop-blur",
+                presenting ? "text-xl" : "text-sm",
+              )}
+            >
               {crumbs.map((code, i) => (
                 <li key={code} className="flex shrink-0 items-center">
                   {i > 0 && <ChevronRight className="size-3.5 text-muted-foreground" />}
@@ -384,7 +434,7 @@ export function TeaMapApp() {
             </ol>
           </nav>
 
-          <Legend />
+          <Legend large={presenting} />
 
           <div className="absolute top-14 left-3 z-20">
             <AnimatePresence>
@@ -420,7 +470,7 @@ export function TeaMapApp() {
         </section>
 
         {/* 목록 */}
-        <aside className="flex flex-col bg-background/60 lg:min-h-0 lg:w-[420px] lg:flex-none">
+        <aside className={cn("flex-col bg-background/60 lg:min-h-0 lg:w-[420px] lg:flex-none", presenting ? "hidden" : "flex")}>
           <div className="space-y-3 border-b p-4">
             <AnimatePresence mode="wait">
               <motion.div
@@ -549,7 +599,7 @@ export function TeaMapApp() {
         </aside>
       </main>
 
-      <Footer />
+      {!presenting && <Footer />}
 
       <TeaDetailDialog
         tea={detail}
@@ -820,9 +870,14 @@ function FilterChip({
   );
 }
 
-function Legend() {
+function Legend({ large }: { large?: boolean }) {
   return (
-    <div className="absolute bottom-3 left-3 hidden flex-col gap-1 rounded-lg border bg-card/90 px-3 py-2 text-xs shadow-sm backdrop-blur sm:flex">
+    <div
+      className={cn(
+        "absolute bottom-3 left-3 hidden origin-bottom-left flex-col gap-1 rounded-lg border bg-card/90 px-3 py-2 text-xs shadow-sm backdrop-blur sm:flex",
+        large && "scale-150",
+      )}
+    >
       <span className="mb-0.5 font-medium text-muted-foreground">6대 다류 · 六大茶類</span>
       {TEA_CATEGORIES.map((c) => (
         <span key={c} className="flex items-center gap-1.5">

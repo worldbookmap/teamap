@@ -5,7 +5,7 @@ import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Minus, Plus, RotateCcw } from "lucide-react";
+import { Loader2, Maximize, Minimize, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_META } from "@/lib/categories";
@@ -37,6 +37,9 @@ interface Props {
   onTeaClick?: (teaId: string) => void;
   /** 차 목록을 아직 불러오는 중 */
   loading?: boolean;
+  /** TV·프로젝터용 전체 화면 (멀리서 읽히게 글자를 키움) */
+  presenting?: boolean;
+  onTogglePresent?: () => void;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
@@ -74,6 +77,9 @@ const LONG_PRESS_MS = 650;
 /** 확대 배율 k 에서 글자·표식에 줄 배율: 지도만큼은 아니어도 확대할수록 커짐 (k=2 → 1.2배, k=8 → 1.9배). 축소할 때는 크기 그대로 */
 const csScale = (k: number) => (k < 1 ? 1 / k : k ** -0.7);
 
+/** 선택한 구역 밖의 글자·표식을 흐리게 할 때 쓰는 클래스 */
+const fade = (dim: boolean) => cn("transition-opacity duration-200", dim && "opacity-20");
+
 export function ChinaMap({
   viewCode,
   focusCode,
@@ -87,6 +93,8 @@ export function ChinaMap({
   onLongPress,
   onTeaClick,
   loading,
+  presenting,
+  onTogglePresent,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -100,6 +108,13 @@ export function ChinaMap({
   const [k, setK] = useState(1);
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  // 전체 화면에서는 화면 높이에 맞춰 글자·표식을 키움 (1080p → 약 1.7배, 4K → 약 3.5배)
+  const labelScale = presenting ? Math.min(3.6, Math.max(1.4, height / 620)) : 1;
+  const labelScaleRef = useRef(labelScale);
+  useEffect(() => {
+    labelScaleRef.current = labelScale;
+  }, [labelScale]);
+  const cs = (k: number) => csScale(k) * labelScale;
 
   useEffect(() => {
     let alive = true;
@@ -197,7 +212,7 @@ export function ChinaMap({
   /** 세부 산지 위치 핀 (전국 지도에서는 너무 빽빽해 생략, 성을 눌러 들어가면 표시) */
   const pins = useMemo(() => {
     if (!projection || viewCode === CHINA) return [];
-    const m = new Map<string, { x: number; y: number; zh: string; ko: string; teas: Tea[] }>();
+    const m = new Map<string, { x: number; y: number; zh: string; ko: string; teas: Tea[]; codes: Set<string>; towns: Set<string> }>();
     for (const t of teas) {
       for (const o of t.origins) {
         const d = o.detail;
@@ -205,8 +220,10 @@ export function ChinaMap({
         const key = `${d.lng},${d.lat}`;
         const pt = projection([d.lng, d.lat]);
         if (!pt) continue;
-        const cur = m.get(key) ?? { x: pt[0], y: pt[1], zh: d.name_zh, ko: d.name_ko, teas: [] };
+        const cur = m.get(key) ?? { x: pt[0], y: pt[1], zh: d.name_zh, ko: d.name_ko, teas: [], codes: new Set<string>(), towns: new Set<string>() };
         if (!cur.teas.includes(t)) cur.teas.push(t);
+        for (const c of o.path) cur.codes.add(c);
+        if (d.code) cur.towns.add(d.code);
         m.set(key, cur);
       }
     }
@@ -281,7 +298,7 @@ export function ChinaMap({
         if (g) {
           g.setAttribute("transform", e.transform.toString());
           // 글자·표식은 반대로 축소해 조금만 커지게 (CSS 변수는 하위 전체 스타일을 다시 계산하게 해서 느림)
-          const inv = `scale(${csScale(e.transform.k)})`;
+          const inv = `scale(${csScale(e.transform.k) * labelScaleRef.current})`;
           for (const el of g.querySelectorAll(".map-cs")) el.setAttribute("transform", inv);
         }
       })
@@ -358,6 +375,60 @@ export function ChinaMap({
   const hoveredTeas = hover ? (regionTeas.get(hover.code) ?? []) : [];
   const tipLeft = (x: number) => Math.min(x + 14, width - 260);
   const tipTop = (y: number) => Math.max(y - 12, 8);
+
+  /** 선택한 구역: 이 구역 밖의 글자·표식은 흐리게 (겹쳐도 선택한 곳이 읽히도록) */
+  const focusShape = focusCode ? shapesData.find((s) => s.f.properties.adcode === focusCode) : undefined;
+  /** 지도에 찍힌 향·진을 골랐으면 그 향·진만 선명하게 (그 현·구의 이름과 다른 향·진도 흐리게) */
+  const townSelected = focusShape && focusTownPt ? focusTown : null;
+
+  const renderLabel = (shape: (typeof shapesData)[number]) => {
+    const { f, area, x, y, label, labelKo } = shape;
+    const code = f.properties.adcode;
+    if (code.includes("_")) return null;
+    const focused = shape === focusShape;
+    const has = (regionTeas.get(code)?.length ?? 0) > 0;
+    // 글자가 커지면 그만큼 넓은 구역에만 이름을 표시. 선택한 구역은 작아도 항상 표시
+    if (!focused && area * k * k < (has ? 900 : 2600) * labelScale ** 2) return null;
+    // 핀·차 이름과 겹치면 핀 위나 아래로 비켜 줌 (s: 지도 좌표 1px 당 글자 크기 비율)
+    const s = cs(k);
+    const hw = Math.max(label.length * 11.5, labelKo.length * 9.5) / 2 + 2;
+    let dy = has ? 24 : 0;
+    for (const p of pins) {
+      const top = y + (dy - 11) * s;
+      const bottom = y + (dy + 16) * s;
+      const pTop = p.y + p.box.top * s;
+      const pBottom = p.y + p.box.bottom * s;
+      if (x + hw * s < p.x + p.box.left * s || x - hw * s > p.x + p.box.right * s || bottom < pTop || top > pBottom) continue;
+      const up = (pTop - y) / s - 18;
+      const above = (top + bottom) / 2 < p.y + ((p.box.top + p.box.bottom) * s) / 2;
+      // 위로 올리다 숫자 표식(가운데 원)에 걸리면 아래로
+      dy = above && !(has && up + 16 > -18) ? up : (pBottom - y) / s + 13;
+    }
+    return (
+      <g key={`l-${code}`} transform={`translate(${x},${y})`} pointerEvents="none" className={fade(!!focusShape && (!focused || !!townSelected))}>
+        <g className="map-cs" transform={`scale(${s})`}>
+        <g transform={`translate(0,${dy})`}>
+        <text
+          textAnchor="middle"
+          className="font-zh"
+          style={{ fill: "var(--map-label)", fontSize: 11.5, fontWeight: 600, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3, strokeOpacity: 0.85 }}
+        >
+          {label}
+        </text>
+        {labelKo && (
+          <text
+            textAnchor="middle"
+            y={12}
+            style={{ fill: "var(--map-label)", fontSize: 9.5, opacity: 0.8, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3, strokeOpacity: 0.85 }}
+          >
+            {labelKo}
+          </text>
+        )}
+        </g>
+        </g>
+      </g>
+    );
+  };
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-map-sea">
@@ -462,52 +533,8 @@ export function ChinaMap({
                 })}
               </g>
 
-              {/* 지명 */}
-              {shapesData.map(({ f, area, x, y, label, labelKo }) => {
-                const code = f.properties.adcode;
-                if (code.includes("_")) return null;
-                const has = (regionTeas.get(code)?.length ?? 0) > 0;
-                if (area * k * k < (has ? 900 : 2600)) return null;
-                // 핀·차 이름과 겹치면 핀 위나 아래로 비켜 줌 (s: 지도 좌표 1px 당 글자 크기 비율)
-                const s = csScale(k);
-                const hw = Math.max(label.length * 11.5, labelKo.length * 9.5) / 2 + 2;
-                let dy = has ? 24 : 0;
-                for (const p of pins) {
-                  const top = y + (dy - 11) * s;
-                  const bottom = y + (dy + 16) * s;
-                  const pTop = p.y + p.box.top * s;
-                  const pBottom = p.y + p.box.bottom * s;
-                  if (x + hw * s < p.x + p.box.left * s || x - hw * s > p.x + p.box.right * s || bottom < pTop || top > pBottom) continue;
-                  const up = (pTop - y) / s - 18;
-                  const above = (top + bottom) / 2 < p.y + ((p.box.top + p.box.bottom) * s) / 2;
-                  // 위로 올리다 숫자 표식(가운데 원)에 걸리면 아래로
-                  dy = above && !(has && up + 16 > -18) ? up : (pBottom - y) / s + 13;
-                }
-                return (
-                  <g key={`l-${code}`} transform={`translate(${x},${y})`} pointerEvents="none">
-                    <g className="map-cs" transform={`scale(${s})`}>
-                    <g transform={`translate(0,${dy})`}>
-                    <text
-                      textAnchor="middle"
-                      className="font-zh"
-                      style={{ fill: "var(--map-label)", fontSize: 11.5, fontWeight: 600, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3, strokeOpacity: 0.85 }}
-                    >
-                      {label}
-                    </text>
-                    {labelKo && (
-                      <text
-                        textAnchor="middle"
-                        y={12}
-                        style={{ fill: "var(--map-label)", fontSize: 9.5, opacity: 0.8, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3, strokeOpacity: 0.85 }}
-                      >
-                        {labelKo}
-                      </text>
-                    )}
-                    </g>
-                    </g>
-                  </g>
-                );
-              })}
+              {/* 지명 (선택한 구역의 이름은 맨 위에 따로 그림) */}
+              {shapesData.map((shape) => (shape === focusShape ? null : renderLabel(shape)))}
 
               {/* 차 표식 */}
               {shapesData.map(({ f, x, y }) => {
@@ -525,7 +552,7 @@ export function ChinaMap({
                     style={{ x, y }}
                     pointerEvents="none"
                   >
-                    <g className="map-cs" transform={`scale(${csScale(k)})`}>
+                    <g className={cn("map-cs", fade(!!focusShape && (code !== focusCode || !!townSelected)))} transform={`scale(${cs(k)})`}>
                       {highlighted.has(code) && (
                         <motion.circle
                           r={r + 6}
@@ -547,14 +574,16 @@ export function ChinaMap({
               })}
 
               {/* 향·진 위치 */}
-              {townDots.map((t) => {
+              {/* 선택한 현·구의 향·진이 위에 오도록 뒤에 그림 */}
+              {[...townDots].sort((a, b) => Number(a.county === focusCode) - Number(b.county === focusCode)).map((t) => {
                 const show = k >= 2.2 || focusCode === t.county;
+                const dim = !!focusShape && (t.county !== focusCode || !!townSelected);
                 if (focusTown?.code === t.code) return null;
                 return (
                   <g
                     key={t.code}
                     transform={`translate(${t.x},${t.y})`}
-                    className={onTownClick ? "group cursor-pointer" : undefined}
+                    className={cn(fade(dim), dim && "hover:opacity-100", onTownClick && "group cursor-pointer")}
                     pointerEvents={onTownClick ? "auto" : "none"}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -562,7 +591,7 @@ export function ChinaMap({
                     }}
                   >
                     <title>{`${t.zh} ${t.ko}`}</title>
-                    <g className="map-cs" transform={`scale(${csScale(k)})`}>
+                    <g className="map-cs" transform={`scale(${cs(k)})`}>
                     {/* 누르기 쉽게 넓은 투명 영역 */}
                     <circle r={show ? 9 : 6} fill="transparent" />
                     <circle
@@ -586,36 +615,14 @@ export function ChinaMap({
                 );
               })}
 
-              {/* 검색으로 고른 향·진 */}
-              {focusTown && focusTownPt && (
-                <g transform={`translate(${focusTownPt[0]},${focusTownPt[1]})`} pointerEvents="none">
-                  <g className="map-cs" transform={`scale(${csScale(k)})`}>
-                  <motion.circle
-                    r={10}
-                    fill="none"
-                    stroke="var(--seal)"
-                    strokeWidth={2}
-                    initial={{ scale: 0.6, opacity: 1 }}
-                    animate={{ scale: 1.8, opacity: 0 }}
-                    transition={{ duration: 1.4, repeat: Infinity }}
-                  />
-                  <circle r={5} style={{ fill: "var(--seal)", stroke: "white", strokeWidth: 1.5 }} />
-                  <text
-                    x={9}
-                    y={-6}
-                    className="font-zh"
-                    style={{ fill: "var(--foreground)", fontSize: 12.5, fontWeight: 700, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3.5 }}
-                  >
-                    {focusTown.zh} <tspan style={{ fontWeight: 400, fontSize: 10.5 }}>{focusTown.ko}</tspan>
-                  </text>
-                  </g>
-                </g>
-              )}
-
               {/* 세부 산지 핀 */}
               {pins.map((p) => (
-                <g key={`p-${p.x},${p.y}`} transform={`translate(${p.x},${p.y})`}>
-                  <g className="map-cs" transform={`scale(${csScale(k)})`}>
+                <g
+                  key={`p-${p.x},${p.y}`}
+                  transform={`translate(${p.x},${p.y})`}
+                  className={fade(!!focusShape && !(townSelected ? p.towns.has(townSelected.code) : p.codes.has(focusShape.f.properties.adcode)))}
+                >
+                  <g className="map-cs" transform={`scale(${cs(k)})`}>
                   <title>{`${[p.zh, p.ko].filter(Boolean).join(" ") || "이름 없는 위치"}\n${p.teas.map((t) => [t.name_zh, t.name_ko].filter(Boolean).join(" ")).join(", ")}`}</title>
                   <motion.path
                     d="M0 0 C -5 -7 -6.5 -10 -6.5 -13 A 6.5 6.5 0 1 1 6.5 -13 C 6.5 -10 5 -7 0 0 Z"
@@ -659,6 +666,43 @@ export function ChinaMap({
                   </g>
                 </g>
               ))}
+
+              {focusShape && renderLabel(focusShape)}
+
+              {/* 고른 향·진 (다시 누르면 선택 해제) */}
+              {focusTown && focusTownPt && (
+                <g
+                  transform={`translate(${focusTownPt[0]},${focusTownPt[1]})`}
+                  className={onTownClick ? "cursor-pointer" : undefined}
+                  pointerEvents={onTownClick ? "auto" : "none"}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTownClick?.(focusTown);
+                  }}
+                >
+                  <g className="map-cs" transform={`scale(${cs(k)})`}>
+                  <circle r={10} fill="transparent" />
+                  <motion.circle
+                    r={10}
+                    fill="none"
+                    stroke="var(--seal)"
+                    strokeWidth={2}
+                    initial={{ scale: 0.6, opacity: 1 }}
+                    animate={{ scale: 1.8, opacity: 0 }}
+                    transition={{ duration: 1.4, repeat: Infinity }}
+                  />
+                  <circle r={5} style={{ fill: "var(--seal)", stroke: "white", strokeWidth: 1.5 }} />
+                  <text
+                    x={9}
+                    y={-6}
+                    className="font-zh"
+                    style={{ fill: "var(--foreground)", fontSize: 12.5, fontWeight: 700, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3.5 }}
+                  >
+                    {focusTown.zh} <tspan style={{ fontWeight: 400, fontSize: 10.5 }}>{focusTown.ko}</tspan>
+                  </text>
+                  </g>
+                </g>
+              )}
             </g>
 
             {/* 길게 누르는 중: 링이 차오름 */}
@@ -772,6 +816,17 @@ export function ChinaMap({
         <Button size="icon-sm" variant="ghost" onClick={resetZoom} aria-label="원래 크기">
           <RotateCcw />
         </Button>
+        {onTogglePresent && (
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={onTogglePresent}
+            aria-label={presenting ? "전체 화면 끝내기" : "지도만 전체 화면으로"}
+            title={presenting ? "전체 화면 끝내기 (Esc)" : "지도만 전체 화면으로 (TV·프로젝터)"}
+          >
+            {presenting ? <Minimize /> : <Maximize />}
+          </Button>
+        )}
       </div>
     </div>
   );
