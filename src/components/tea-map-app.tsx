@@ -21,6 +21,7 @@ import { TastingTimelineSheet } from "@/components/tasting/tasting-timeline-shee
 import { TeaDetailDialog, type DetailTab } from "@/components/tea/tea-detail-dialog";
 import { TeaFormDialog } from "@/components/tea/tea-form-dialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useConverter } from "@/hooks/use-converter";
@@ -67,6 +68,8 @@ export function TeaMapApp() {
   const [loginOpen, setLoginOpen] = useState(false);
   /** TV·프로젝터용: 지도만 화면 가득 */
   const [presenting, setPresenting] = useState(false);
+  /** 전체 화면에서 차 개수 표식을 눌러 연 차 목록 (self: 그 구역 자체로 등록된 차만) */
+  const [countList, setCountList] = useState<{ code: string; self?: boolean } | null>(null);
 
   // 마신 기록
   const [tastings, setTastings] = useState<Tasting[]>([]);
@@ -181,17 +184,26 @@ export function TeaMapApp() {
   );
   const regionCode = focusCode ?? viewCode;
   /** 목록 순서: 다류 순으로 묶고, 다류 안에서는 최근에 고친 차(제품 수정 포함)가 먼저 */
-  const inRegion = useMemo(() => {
-    const updated = (t: Tea) =>
-      [t, ...(productsOf.get(t.id) ?? [])].reduce((max, x) => (x.updated_at > max ? x.updated_at : max), "");
-    return teasInRegion(filtered, regionCode)
-      .map((t) => ({ t, at: updated(t) }))
-      .sort(
-        (a, b) =>
-          TEA_CATEGORIES.indexOf(a.t.category) - TEA_CATEGORIES.indexOf(b.t.category) || b.at.localeCompare(a.at),
-      )
-      .map(({ t }) => t);
-  }, [filtered, regionCode, productsOf]);
+  const sortTeas = useCallback(
+    (list: Tea[]) => {
+      const updated = (t: Tea) =>
+        [t, ...(productsOf.get(t.id) ?? [])].reduce((max, x) => (x.updated_at > max ? x.updated_at : max), "");
+      return list
+        .map((t) => ({ t, at: updated(t) }))
+        .sort(
+          (a, b) =>
+            TEA_CATEGORIES.indexOf(a.t.category) - TEA_CATEGORIES.indexOf(b.t.category) || b.at.localeCompare(a.at),
+        )
+        .map(({ t }) => t);
+    },
+    [productsOf],
+  );
+  const inRegion = useMemo(() => sortTeas(teasInRegion(filtered, regionCode)), [sortTeas, filtered, regionCode]);
+  const countTeas = useMemo(() => {
+    if (!countList) return [];
+    const { code, self } = countList;
+    return sortTeas(self ? filtered.filter((t) => t.origins.some((o) => o.adcode === code)) : teasInRegion(filtered, code));
+  }, [countList, sortTeas, filtered]);
   // 모바일은 페이지 전체가 스크롤되므로 목록을 MOBILE_PAGE 개씩만 보여 주고 '더보기'로 늘림.
   // 지역·검색·필터가 바뀌면 처음 개수로 (데스크톱은 목록만 스크롤되니 전부 보여 줌)
   const listKey = `${regionCode}|${query}|${[...cats].join()}|${drunkOnly}`;
@@ -263,6 +275,7 @@ export function TeaMapApp() {
   // 화면 크기가 크게 바뀌므로 확대 상태는 처음으로 되돌림
   const stopPresenting = useCallback(() => {
     setPresenting(false);
+    setCountList(null);
     setMapResetKey((k) => k + 1);
   }, []);
   const togglePresent = () => {
@@ -384,6 +397,7 @@ export function TeaMapApp() {
             loading={loading}
             presenting={presenting}
             onTogglePresent={togglePresent}
+            onCountClick={presenting ? (code, self) => setCountList({ code, self }) : undefined}
           />
 
           <div className="absolute top-3 right-3 z-20">
@@ -601,6 +615,38 @@ export function TeaMapApp() {
 
       {!presenting && <Footer />}
 
+      {/* 차를 고르면 세부 정보가 뜨는 동안 숨었다가, 닫으면 목록으로 돌아옴 */}
+      <Dialog open={countTeas.length > 0 && !detailId} onOpenChange={(o) => !o && setCountList(null)}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-baseline gap-2">
+              <span className="font-zh text-2xl font-bold">{countList && regionName(countList.code)}</span>
+              <span className="font-heading text-lg text-muted-foreground">
+                {countList && conv?.toHangul(regionName(countList.code))}
+              </span>
+            </DialogTitle>
+            <DialogDescription>
+              {countList?.self ? "이 지역 전역으로 등록된 차" : "등록된 차"} {countTeas.length}종
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="space-y-2">
+            {countTeas.map((t) => (
+              <TeaCard
+                key={t.id}
+                tea={t}
+                drunk={summaries.get(t.id)}
+                productCount={productsOf.get(t.id)?.length ?? 0}
+                onOpen={(x) => {
+                  setDetailTab("info");
+                  setDetailId(x.id);
+                }}
+                onHover={() => {}}
+              />
+            ))}
+          </ul>
+        </DialogContent>
+      </Dialog>
+
       <TeaDetailDialog
         tea={detail}
         onOpenChange={(o) => !o && setDetailId(null)}
@@ -637,6 +683,7 @@ export function TeaMapApp() {
           },
         }}
         onShowOrigin={(o) => {
+          setCountList(null);
           setDetailId(null);
           goTo(o.adcode);
         }}

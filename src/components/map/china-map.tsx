@@ -40,6 +40,8 @@ interface Props {
   /** TV·프로젝터용 전체 화면 (멀리서 읽히게 글자를 키움) */
   presenting?: boolean;
   onTogglePresent?: () => void;
+  /** 차 개수 표식을 눌렀을 때 (없으면 표식은 누를 수 없고 아래 구역이 눌림). self: 그 구역 자체로 등록된 차만 */
+  onCountClick?: (adcode: string, self?: boolean) => void;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
@@ -95,6 +97,7 @@ export function ChinaMap({
   loading,
   presenting,
   onTogglePresent,
+  onCountClick,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -564,10 +567,19 @@ export function ChinaMap({
                           transition={{ duration: 1.2, repeat: Infinity }}
                         />
                       )}
-                      <circle r={r} fill={CATEGORY_META[cat].color} stroke="var(--map-land)" strokeWidth={2} />
-                      <text textAnchor="middle" dy="0.36em" fill="white" style={{ fontSize: 11, fontWeight: 700 }}>
-                        {list.length}
-                      </text>
+                      <g
+                        pointerEvents={onCountClick ? "auto" : "none"}
+                        className={onCountClick ? "cursor-pointer" : undefined}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCountClick?.(code);
+                        }}
+                      >
+                        <circle r={r} fill={CATEGORY_META[cat].color} stroke="var(--map-land)" strokeWidth={2} />
+                        <text textAnchor="middle" dy="0.36em" fill="white" style={{ fontSize: 11, fontWeight: 700 }}>
+                          {list.length}
+                        </text>
+                      </g>
                     </g>
                   </motion.g>
                 );
@@ -801,9 +813,17 @@ export function ChinaMap({
       )}
 
       {selfTeas.length > 0 && (
-        <div className="absolute left-3 top-3 rounded-full border bg-card/90 px-3 py-1 text-xs shadow-sm backdrop-blur">
+        <button
+          type="button"
+          disabled={!onCountClick}
+          onClick={() => onCountClick?.(viewCode, true)}
+          className={cn(
+            "absolute top-14 left-3 rounded-full border bg-card/90 px-3 py-1 shadow-sm backdrop-blur",
+            onCountClick ? "cursor-pointer text-base hover:bg-muted" : "text-xs",
+          )}
+        >
           이 지역 전역: <b>{selfTeas.length}종</b>
-        </div>
+        </button>
       )}
 
       <div className="absolute bottom-3 right-3 flex flex-col gap-1 rounded-lg border bg-card/90 p-1 shadow-sm backdrop-blur">
