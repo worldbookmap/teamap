@@ -78,7 +78,7 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
               茶
             </span>
           </div>
-          <h1 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">중국 차 지도</h1>
+          <h1 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">Teaggle</h1>
           <p className="mt-1 font-zh text-sm tracking-[0.5em] text-muted-foreground">中國茶地圖</p>
           {/* 운영 클럽 */}
           <a

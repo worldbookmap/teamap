@@ -10,7 +10,7 @@ const serif = Noto_Serif_KR({ variable: "--font-noto-serif", subsets: ["latin"],
 const serifSc = Noto_Serif_SC({ variable: "--font-noto-serif-sc", subsets: ["latin"], weight: ["400", "600", "700"], preload: false });
 
 export const metadata: Metadata = {
-  title: "중국 차 지도 · 中國茶地圖",
+  title: "Teaggle 티끌",
   description: "중국의 성(省)·시·현 단위 산지별로 6대 다류의 명차를 찾아보는 지도",
 };
 

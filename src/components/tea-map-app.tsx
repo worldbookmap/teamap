@@ -951,7 +951,7 @@ function Header({
           className="size-10 shrink-0 rounded-full bg-white object-cover shadow-sm ring-1 ring-border"
         />
         <div className="min-w-0 leading-tight">
-          <h1 className="truncate font-heading text-lg font-bold whitespace-nowrap">중국 차 지도</h1>
+          <h1 className="truncate font-heading text-lg font-bold whitespace-nowrap">Teaggle</h1>
           <p className="truncate text-xs whitespace-nowrap text-muted-foreground">
             <span className="font-zh tracking-[0.3em]">中國茶地圖</span>
             <span className="hidden sm:inline">
