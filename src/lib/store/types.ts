@@ -1,4 +1,4 @@
-import type { RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
+import type { Gathering, GatheringInput, RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
 
 export interface TeaStore {
   kind: "local" | "supabase";
@@ -21,6 +21,12 @@ export interface TeaStore {
   createRegionMap(input: RegionMapInput): Promise<RegionMap>;
   updateRegionMap(id: string, input: Partial<RegionMapInput>): Promise<RegionMap | null>;
   removeRegionMap(id: string): Promise<boolean>;
+
+  /** 티끌 모임 기록 (최근 날짜 순) */
+  listGatherings(): Promise<Gathering[]>;
+  createGathering(input: GatheringInput): Promise<Gathering>;
+  updateGathering(id: string, input: Partial<GatheringInput>): Promise<Gathering | null>;
+  removeGathering(id: string): Promise<boolean>;
 
   /**
    * 브라우저에서 저장소로 바로 올릴 수 있는 일회용 주소 (Vercel 의 4.5MB 요청 제한을 피함).

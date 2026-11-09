@@ -1,4 +1,4 @@
-import type { RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "./types";
+import type { Gathering, GatheringInput, RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "./types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -50,6 +50,10 @@ export const api = {
   createRegionMap: (input: RegionMapInput) => request<RegionMap>("/api/region-maps", json("POST", input)),
   updateRegionMap: (id: string, input: Partial<RegionMapInput>) => request<RegionMap>(`/api/region-maps/${id}`, json("PATCH", input)),
   deleteRegionMap: (id: string) => request<void>(`/api/region-maps/${id}`, { method: "DELETE" }),
+  listGatherings: () => request<Gathering[]>("/api/gatherings", { cache: "no-store" }),
+  createGathering: (input: GatheringInput) => request<Gathering>("/api/gatherings", json("POST", input)),
+  updateGathering: (id: string, input: Partial<GatheringInput>) => request<Gathering>(`/api/gatherings/${id}`, json("PATCH", input)),
+  deleteGathering: (id: string) => request<void>(`/api/gatherings/${id}`, { method: "DELETE" }),
   me: () => request<{ admin: boolean; authDisabled: boolean; store: "local" | "supabase" }>("/api/auth/me", { cache: "no-store" }),
   login: (password: string) => request<{ admin: boolean }>("/api/auth/login", json("POST", { password })),
   logout: () => request<{ admin: boolean }>("/api/auth/logout", { method: "POST" }),

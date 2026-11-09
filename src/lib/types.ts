@@ -83,3 +83,30 @@ export interface RegionMap {
 }
 
 export type RegionMapInput = Omit<RegionMap, "id" | "created_at" | "updated_at">;
+
+/** 티끌 모임 종류: 정기모임 · 벙개모임 */
+export const GATHERING_KINDS = ["regular", "casual"] as const;
+export type GatheringKind = (typeof GATHERING_KINDS)[number];
+
+/** 모임에서 마신 차. tea_id 가 있으면 등록된 차와 연결, name 은 표시용 이름(연결이 끊겨도 남음) */
+export interface GatheringTea {
+  tea_id: string | null;
+  name: string;
+}
+
+/** 티끌 모임 기록 */
+export interface Gathering {
+  id: string;
+  kind: GatheringKind;
+  held_on: string; // YYYY-MM-DD
+  time: string; // HH:MM (선택, 없으면 "")
+  title: string; // 선택
+  place: string;
+  photos: string[];
+  teas: GatheringTea[];
+  note: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type GatheringInput = Omit<Gathering, "id" | "created_at" | "updated_at">;

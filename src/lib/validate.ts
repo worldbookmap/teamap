@@ -1,6 +1,10 @@
 import { isTheteaSlug } from "./thetea";
 import {
+  GATHERING_KINDS,
   TEA_CATEGORIES,
+  type GatheringInput,
+  type GatheringKind,
+  type GatheringTea,
   type OriginDetail,
   type RegionMapInput,
   type TastingInput,
@@ -174,6 +178,64 @@ export function parseRegionMapInput(
     out.link ??= "";
     out.images ??= [];
     if (!out.images.length && !out.link) return { ok: false, error: "지도 이미지나 링크 중 하나는 넣어 주세요." };
+  }
+  return { ok: true, value: out };
+}
+
+/** 모임 기록 요청 본문 정리. partial=true 면 넘어온 필드만 */
+export function parseGatheringInput(
+  body: unknown,
+  partial = false,
+): { ok: true; value: Partial<GatheringInput> } | { ok: false; error: string } {
+  if (!body || typeof body !== "object") return { ok: false, error: "잘못된 요청입니다." };
+  const b = body as Record<string, unknown>;
+  const out: Partial<GatheringInput> = {};
+
+  if ("kind" in b) {
+    if (!GATHERING_KINDS.includes(b.kind as GatheringKind)) return { ok: false, error: "모임 종류를 골라 주세요." };
+    out.kind = b.kind as GatheringKind;
+  }
+  if ("held_on" in b) {
+    const d = str(b.held_on, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d))) return { ok: false, error: "모임 날짜를 확인해 주세요." };
+    out.held_on = d;
+  }
+  if ("time" in b) {
+    const t = str(b.time, 5);
+    if (t && !/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) return { ok: false, error: "모임 시간을 확인해 주세요." };
+    out.time = t;
+  }
+  if ("title" in b) out.title = str(b.title, 200);
+  if ("place" in b) out.place = str(b.place, 200);
+  if ("note" in b) out.note = str(b.note, 20000);
+  if ("photos" in b) {
+    out.photos = Array.isArray(b.photos)
+      ? b.photos.map((u) => str(u, 2000)).filter((u) => /^(https?:\/\/|\/api\/uploads\/)/.test(u))
+      : [];
+  }
+  if ("teas" in b) {
+    const list = Array.isArray(b.teas) ? b.teas : [];
+    out.teas = list
+      .map((v): GatheringTea | null => {
+        if (!v || typeof v !== "object") return null;
+        const t = v as Record<string, unknown>;
+        const tea_id = str(t.tea_id, 64) || null;
+        const name = str(t.name, 200);
+        return tea_id || name ? { tea_id, name } : null;
+      })
+      .filter((t): t is GatheringTea => !!t)
+      .slice(0, 100);
+  }
+
+  if (!partial) {
+    if (!out.held_on) return { ok: false, error: "모임 날짜를 입력해 주세요." };
+    out.kind ??= "regular";
+    out.time ??= "";
+    out.title ??= "";
+    out.place ??= "";
+    out.note ??= "";
+    out.photos ??= [];
+    out.teas ??= [];
   }
   return { ok: true, value: out };
 }

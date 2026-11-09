@@ -1,13 +1,17 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, Loader2, LogIn, LogOut, Moon, Plus, Search, Sparkles, Sun } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, Loader2, LogIn, LogOut, Map as MapIcon, Moon, Plus, Search, Sparkles, Sun, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CLUB, ClubFollowButton } from "@/components/club";
 import { formatDate, Landing, markUpdatesSeen, useUnseenUpdates } from "@/components/landing";
 import { CHANGELOG, type ChangelogEntry } from "@/data/changelog";
+import { GatheringDetailDialog } from "@/components/gathering/gathering-detail-dialog";
+import { GatheringFormDialog } from "@/components/gathering/gathering-form-dialog";
+import { regularOrdinals } from "@/components/gathering/gathering-utils";
+import { GatheringsView } from "@/components/gathering/gatherings-view";
 import { ChinaMap } from "@/components/map/china-map";
 import { RegionSearch } from "@/components/map/region-search";
 import { TownCard } from "@/components/map/town-card";
@@ -31,11 +35,13 @@ import { buildRegionSearch, CHINA, makeOrigin, regionPath } from "@/lib/regions"
 import { categoryCounts, matchesQuery, teasInRegion } from "@/lib/tea-utils";
 import { fold } from "@/lib/thetea";
 import { useTheteaIndex } from "@/hooks/use-thetea";
-import { TEA_CATEGORIES, type RegionMap, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
+import { TEA_CATEGORIES, type Gathering, type RegionMap, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
 import { originKey, type TownFocus } from "@/lib/towns";
 import { cn } from "@/lib/utils";
 
 type Me = Awaited<ReturnType<typeof api.me>>;
+/** 맨 위 탭: 차 지도 · 티끌 모임 */
+type View = "map" | "club";
 
 /** 모바일에서 차 목록을 한 번에 보여 줄 개수 */
 const MOBILE_PAGE = 5;
@@ -82,6 +88,14 @@ export function TeaMapApp() {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [drunkOnly, setDrunkOnly] = useState(false);
 
+  // 티끌 모임 기록
+  const [view, setView] = useState<View>("map");
+  const [gatherings, setGatherings] = useState<Gathering[]>([]);
+  const [gatheringsLoading, setGatheringsLoading] = useState(true);
+  const [gatheringsError, setGatheringsError] = useState<string | null>(null);
+  const [gatheringId, setGatheringId] = useState<string | null>(null);
+  const [gatheringForm, setGatheringForm] = useState<{ open: boolean; gathering?: Gathering | null }>({ open: false });
+
   // 지역 참고 지도
   const [regionMaps, setRegionMaps] = useState<RegionMap[]>([]);
   const [mapsError, setMapsError] = useState<string | null>(null);
@@ -110,11 +124,36 @@ export function TeaMapApp() {
       .then(setTastings)
       .catch((e) => setTastingError(e.message));
     api
+      .listGatherings()
+      .then(setGatherings)
+      .catch((e) => setGatheringsError(e.message))
+      .finally(() => setGatheringsLoading(false));
+    api
       .listRegionMaps()
       .then(setRegionMaps)
       .catch((e) => setMapsError(e.message));
     refreshMe();
   }, [refreshMe]);
+
+  // 주소 끝 #club 으로 모임 탭을 바로 열고, 탭을 바꾸면 주소도 맞춤 (공유용)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 첫 렌더 뒤 주소에서 한 번 읽음 (SSR 과 맞추기 위해)
+    if (window.location.hash === "#club") setView("club");
+  }, []);
+  const changeView = useCallback((v: View) => {
+    setView(v);
+    window.history.replaceState(null, "", v === "club" ? "#club" : window.location.pathname + window.location.search);
+    window.scrollTo({ top: 0 });
+  }, []);
+  const ordinals = useMemo(() => regularOrdinals(gatherings), [gatherings]);
+  const places = useMemo(() => [...new Set(gatherings.map((g) => g.place).filter(Boolean))], [gatherings]);
+  const openGathering = gatherings.find((g) => g.id === gatheringId) ?? null;
+  const saveGathering = (saved: Gathering) =>
+    setGatherings((list) =>
+      [saved, ...list.filter((g) => g.id !== saved.id)].sort(
+        (a, b) => b.held_on.localeCompare(a.held_on) || b.time.localeCompare(a.time) || b.created_at.localeCompare(a.created_at),
+      ),
+    );
 
   const byTea = useMemo(() => {
     const m = new Map<string, Tasting[]>();
@@ -268,6 +307,7 @@ export function TeaMapApp() {
 
   /** 처음 화면으로: 지도·검색·필터 초기화 */
   const goHome = () => {
+    changeView("map");
     setViewCode(CHINA);
     setFocusCode(null);
     setQuery("");
@@ -374,10 +414,34 @@ export function TeaMapApp() {
           onTimeline={() => setTimelineOpen(true)}
           onHome={goHome}
           onUpdates={() => setLandingManual(CHANGELOG)}
+          view={view}
+          onView={changeView}
+          gatheringCount={gatherings.length}
         />
       )}
 
-      <main className={cn("flex flex-1 flex-col lg:flex-row", presenting ? "min-h-0" : "lg:min-h-0")}>
+      {view === "club" && !presenting && (
+        <main className="flex-1 lg:min-h-0 lg:overflow-y-auto">
+          <GatheringsView
+            gatherings={gatherings}
+            teas={teas}
+            loading={gatheringsLoading || loading}
+            error={gatheringsError}
+            admin={admin}
+            onOpen={setGatheringId}
+            onAdd={() => setGatheringForm({ open: true, gathering: null })}
+          />
+        </main>
+      )}
+
+      {/* 모임 탭에 있는 동안에도 지도는 그대로 두어 확대·위치를 기억 */}
+      <main
+        className={cn(
+          "flex flex-1 flex-col lg:flex-row",
+          presenting ? "min-h-0" : "lg:min-h-0",
+          view === "club" && !presenting && "hidden",
+        )}
+      >
         {/* 지도 */}
         <section
           className={cn(
@@ -654,6 +718,42 @@ export function TeaMapApp() {
         </DialogContent>
       </Dialog>
 
+      {/* 차를 고르면 그 차 정보가 뜨는 동안 숨었다가, 닫으면 모임 기록으로 돌아옴 */}
+      <GatheringDetailDialog
+        gathering={detailId || gatheringForm.open ? null : openGathering}
+        ordinal={gatheringId ? ordinals.get(gatheringId) : undefined}
+        teas={teas}
+        admin={admin}
+        onOpenChange={(o) => !o && setGatheringId(null)}
+        onOpenTea={(id) => {
+          setDetailTab("info");
+          setDetailId(id);
+        }}
+        onEdit={(g) => setGatheringForm({ open: true, gathering: g })}
+        onDelete={async (g) => {
+          try {
+            await api.deleteGathering(g.id);
+            setGatherings((list) => list.filter((x) => x.id !== g.id));
+            setGatheringId(null);
+            toast.success("모임 기록을 삭제했습니다.");
+          } catch (e) {
+            toast.error((e as Error).message);
+          }
+        }}
+      />
+      <GatheringFormDialog
+        open={gatheringForm.open}
+        onOpenChange={(open) => setGatheringForm((f) => ({ ...f, open }))}
+        gathering={gatheringForm.gathering}
+        teas={teas}
+        places={places}
+        conv={conv}
+        onSaved={(g) => {
+          saveGathering(g);
+          setGatheringId(g.id);
+        }}
+      />
+
       <TeaDetailDialog
         tea={detail}
         onOpenChange={(o) => !o && setDetailId(null)}
@@ -697,7 +797,21 @@ export function TeaMapApp() {
         onShowOrigin={(o) => {
           setCountList(null);
           setDetailId(null);
+          setGatheringId(null);
+          changeView("map");
           goTo(o.adcode);
+        }}
+        club={{
+          gatherings: detail
+            ? (() => {
+                const family = new Set([detail.id, ...(productsOf.get(detail.id) ?? []).map((p) => p.id)]);
+                return gatherings.filter((g) => g.teas.some((t) => t.tea_id && family.has(t.tea_id)));
+              })()
+            : [],
+          onOpen: (id) => {
+            setDetailId(null);
+            setGatheringId(id);
+          },
         }}
       />
       <TeaFormDialog
@@ -800,6 +914,9 @@ function Header({
   onTimeline,
   onHome,
   onUpdates,
+  view,
+  onView,
+  gatheringCount,
 }: {
   admin: boolean;
   me: Me | null;
@@ -810,15 +927,18 @@ function Header({
   onTimeline: () => void;
   onHome: () => void;
   onUpdates: () => void;
+  view: View;
+  onView: (v: View) => void;
+  gatheringCount: number;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   return (
-    <header className="flex items-center gap-3 border-b bg-card/70 px-4 py-2.5 backdrop-blur">
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-card/70 px-4 py-2.5 backdrop-blur">
       <button
         type="button"
         onClick={onHome}
         aria-label="처음 지도로"
-        className="flex items-center gap-3 rounded-lg text-left outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex min-w-0 items-center gap-3 rounded-lg text-left outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring max-sm:flex-1 max-sm:basis-0"
       >
         <motion.img
           src="/teaggle.jpg"
@@ -830,9 +950,9 @@ function Header({
           transition={{ type: "spring", stiffness: 260, damping: 18 }}
           className="size-10 shrink-0 rounded-full bg-white object-cover shadow-sm ring-1 ring-border"
         />
-        <div className="leading-tight">
-          <h1 className="font-heading text-lg font-bold whitespace-nowrap">중국 차 지도</h1>
-          <p className="text-xs whitespace-nowrap text-muted-foreground">
+        <div className="min-w-0 leading-tight">
+          <h1 className="truncate font-heading text-lg font-bold whitespace-nowrap">중국 차 지도</h1>
+          <p className="truncate text-xs whitespace-nowrap text-muted-foreground">
             <span className="font-zh tracking-[0.3em]">中國茶地圖</span>
             <span className="hidden sm:inline">
               <span className="mx-1.5 text-border">·</span>
@@ -841,6 +961,8 @@ function Header({
           </p>
         </div>
       </button>
+
+      <ViewTabs view={view} onView={onView} gatheringCount={gatheringCount} />
 
       <div className="ml-auto flex items-center gap-1.5">
         {me?.store === "local" && (
@@ -898,6 +1020,46 @@ function Header({
           ))}
       </div>
     </header>
+  );
+}
+
+/** 맨 위 탭. 모바일에서는 헤더 아래 줄에 꽉 차게 */
+function ViewTabs({ view, onView, gatheringCount }: { view: View; onView: (v: View) => void; gatheringCount: number }) {
+  const tabs = [
+    { id: "map" as const, label: "차 지도", icon: MapIcon },
+    { id: "club" as const, label: "티끌 모임", icon: Users },
+  ];
+  return (
+    <div role="tablist" aria-label="화면" className="flex rounded-full border bg-muted/60 p-0.5 max-sm:order-last max-sm:w-full">
+      {tabs.map(({ id, label, icon: Icon }) => {
+        const active = view === id;
+        return (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={active}
+            onClick={() => onView(id)}
+            className={cn(
+              "relative flex items-center justify-center gap-1.5 rounded-full px-3.5 py-1 text-sm transition-colors max-sm:flex-1",
+              active ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {active && (
+              <motion.span
+                layoutId="view-tab"
+                className="absolute inset-0 rounded-full bg-card shadow-sm ring-1 ring-border"
+                transition={{ type: "spring", stiffness: 500, damping: 38 }}
+              />
+            )}
+            <Icon className={cn("relative size-3.5", active && id === "club" && "text-seal", active && id === "map" && "text-primary")} />
+            <span className="relative">{label}</span>
+            {id === "club" && gatheringCount > 0 && (
+              <span className="relative text-xs font-normal text-muted-foreground tabular-nums">{gatheringCount}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

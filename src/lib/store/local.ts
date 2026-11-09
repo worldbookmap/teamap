@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
+import type { Gathering, GatheringInput, RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
 import { buildSeedTeas } from "./seed";
 import type { TeaStore } from "./types";
 
@@ -10,6 +10,7 @@ export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 const DB_FILE = path.join(DATA_DIR, "teas.json");
 const TASTING_FILE = path.join(DATA_DIR, "tastings.json");
 const MAP_FILE = path.join(DATA_DIR, "region-maps.json");
+const GATHERING_FILE = path.join(DATA_DIR, "gatherings.json");
 
 let queue: Promise<unknown> = Promise.resolve();
 /** 파일 쓰기가 겹치지 않도록 순서대로 실행 */
@@ -58,6 +59,10 @@ async function readList<T>(file: string): Promise<T[]> {
 }
 const readTastings = () => readList<Tasting>(TASTING_FILE);
 const readMaps = () => readList<RegionMap>(MAP_FILE);
+const readGatherings = () => readList<Gathering>(GATHERING_FILE);
+
+const byHeldDesc = (a: Gathering, b: Gathering) =>
+  b.held_on.localeCompare(a.held_on) || b.time.localeCompare(a.time) || b.created_at.localeCompare(a.created_at);
 
 const byDateDesc = (a: Tasting, b: Tasting) =>
   b.tasted_on.localeCompare(a.tasted_on) || b.created_at.localeCompare(a.created_at);
@@ -165,6 +170,37 @@ export const localStore: TeaStore = {
       const next = list.filter((m) => m.id !== id);
       if (next.length === list.length) return false;
       await writeJson(MAP_FILE, next);
+      return true;
+    }),
+
+  listGatherings: () => serial(async () => (await readGatherings()).sort(byHeldDesc)),
+
+  createGathering: (input: GatheringInput) =>
+    serial(async () => {
+      const list = await readGatherings();
+      const now = new Date().toISOString();
+      const g: Gathering = { ...input, id: crypto.randomUUID(), created_at: now, updated_at: now };
+      list.push(g);
+      await writeJson(GATHERING_FILE, list);
+      return g;
+    }),
+
+  updateGathering: (id, input) =>
+    serial(async () => {
+      const list = await readGatherings();
+      const i = list.findIndex((g) => g.id === id);
+      if (i < 0) return null;
+      list[i] = { ...list[i], ...input, id, updated_at: new Date().toISOString() };
+      await writeJson(GATHERING_FILE, list);
+      return list[i];
+    }),
+
+  removeGathering: (id) =>
+    serial(async () => {
+      const list = await readGatherings();
+      const next = list.filter((g) => g.id !== id);
+      if (next.length === list.length) return false;
+      await writeJson(GATHERING_FILE, next);
       return true;
     }),
 

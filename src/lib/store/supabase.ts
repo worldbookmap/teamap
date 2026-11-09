@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import type { RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
+import type { Gathering, GatheringInput, RegionMap, RegionMapInput, Tasting, TastingInput, Tea, TeaInput } from "../types";
 import { extOf } from "./local";
 import { MissingTableError, type TeaStore } from "./types";
 
@@ -11,6 +11,8 @@ const PRODUCTS_MIGRATION = "supabase/migrations/20261028020000_tea_products.sql"
 const THETEA_MIGRATION = "supabase/migrations/20261109000000_thetea.sql";
 const MAPS = "region_maps";
 const MAPS_MIGRATION = "supabase/migrations/20261028030000_region_maps.sql";
+const GATHERINGS = "gatherings";
+const GATHERINGS_MIGRATION = "supabase/migrations/20261109010000_gatherings.sql";
 
 let client: SupabaseClient | null = null;
 
@@ -23,6 +25,9 @@ function db() {
 }
 
 function check<T>({ data, error }: { data: T; error: { message: string; code?: string } | null }): T {
+  if (error?.code === "PGRST205" && error.message.includes(GATHERINGS)) {
+    throw new MissingTableError(`${GATHERINGS} 테이블`, GATHERINGS_MIGRATION);
+  }
   if (error?.code === "PGRST205" && error.message.includes(MAPS)) {
     throw new MissingTableError(`${MAPS} 테이블`, MAPS_MIGRATION);
   }
@@ -42,6 +47,8 @@ function check<T>({ data, error }: { data: T; error: { message: string; code?: s
 
 /** numeric 컬럼은 문자열로 올 수 있어 숫자로 맞춥니다 */
 const normTasting = (t: Tasting): Tasting => ({ ...t, rating: t.rating == null ? null : Number(t.rating) });
+
+const normGathering = (g: Gathering): Gathering => ({ ...g, teas: Array.isArray(g.teas) ? g.teas : [], time: g.time ?? "" });
 
 /** 마이그레이션 전 행에는 parent_id·maker·thetea_slug 가 없을 수 있습니다 */
 const normTea = (t: Tea): Tea => ({ ...t, parent_id: t.parent_id ?? null, maker: t.maker ?? "", thetea_slug: t.thetea_slug ?? null });
@@ -157,6 +164,38 @@ export const supabaseStore: TeaStore = {
 
   async removeRegionMap(id) {
     const rows = check(await db().from(MAPS).delete().eq("id", id).select("id")) as { id: string }[];
+    return rows.length > 0;
+  },
+
+  async listGatherings() {
+    const rows = check(
+      await db()
+        .from(GATHERINGS)
+        .select("*")
+        .order("held_on", { ascending: false })
+        .order("time", { ascending: false })
+        .order("created_at", { ascending: false }),
+    ) as Gathering[];
+    return rows.map(normGathering);
+  },
+
+  async createGathering(input: GatheringInput) {
+    return normGathering(check(await db().from(GATHERINGS).insert(input).select().single()) as Gathering);
+  },
+
+  async updateGathering(id, input) {
+    const rows = check(
+      await db()
+        .from(GATHERINGS)
+        .update({ ...input, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .select(),
+    ) as Gathering[];
+    return rows[0] ? normGathering(rows[0]) : null;
+  },
+
+  async removeGathering(id) {
+    const rows = check(await db().from(GATHERINGS).delete().eq("id", id).select("id")) as { id: string }[];
     return rows.length > 0;
   },
 

@@ -57,6 +57,7 @@ Supabase 설정이 없으면 자동으로 **로컬 파일 저장소**(`.data/tea
    - `20261028020000_tea_products.sql` — 제품(하위 차)용 컬럼 `parent_id`, `maker`
    - `20261028030000_region_maps.sql` — 지역 참고 지도 테이블 `region_maps`
    - `20261109000000_thetea.sql` — 백과사전 글 연결 컬럼 `thetea_slug` (없어도 이름으로 자동 연결은 작동)
+   - `20261109010000_gatherings.sql` — 티끌 모임 기록 테이블 `gatherings`
 2. `.env.local` 에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 입력
 3. 데이터 넣기 — 둘 중 하나
    - 로컬에서 입력한 데이터를 그대로 옮기기: `npm run migrate:supabase` (사진도 Storage 로 업로드)

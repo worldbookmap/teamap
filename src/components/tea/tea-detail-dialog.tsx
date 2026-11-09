@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { BookOpen, ChevronLeft, ChevronRight, Factory, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Factory, MapPin, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { Stars } from "@/components/tasting/star-rating";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { CATEGORY_META } from "@/lib/categories";
 import type { TheteaIndex } from "@/lib/thetea";
 import type { RegionIndex } from "@/lib/regions";
 import { originKey } from "@/lib/towns";
-import type { Tasting, Tea, TeaOrigin } from "@/lib/types";
+import type { Gathering, Tasting, Tea, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CategoryBadge, TeaSeal, TeaThumb } from "./tea-visual";
 import { TheteaPanel } from "./thetea-panel";
@@ -35,6 +35,12 @@ export interface ProductPanel {
   stats: Map<string, { count: number; avg: number | null }>;
   onOpen: (teaId: string) => void;
   onAdd: () => void;
+}
+
+/** 이 차를 마신 티끌 모임 */
+export interface ClubPanel {
+  gatherings: Gathering[];
+  onOpen: (id: string) => void;
 }
 
 /** 상세 창의 「마신 기록」 탭에 필요한 것들 */
@@ -61,6 +67,7 @@ export function TeaDetailDialog({
   tasting,
   product,
   thetea,
+  club,
 }: {
   tea: Tea | null;
   onOpenChange: (open: boolean) => void;
@@ -72,6 +79,7 @@ export function TeaDetailDialog({
   tasting: TastingPanel;
   product: ProductPanel;
   thetea: TheteaTab;
+  club?: ClubPanel;
 }) {
   return (
     <Dialog open={!!tea} onOpenChange={onOpenChange}>
@@ -88,6 +96,7 @@ export function TeaDetailDialog({
             tasting={tasting}
             product={product}
             thetea={thetea}
+            club={club}
           />
         )}
       </DialogContent>
@@ -105,6 +114,7 @@ function TeaDetail({
   tasting,
   product,
   thetea,
+  club,
 }: {
   tea: Tea;
   regions: RegionIndex | null;
@@ -115,6 +125,7 @@ function TeaDetail({
   tasting: TastingPanel;
   product: ProductPanel;
   thetea: TheteaTab;
+  club?: ClubPanel;
 }) {
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState(1);
@@ -356,6 +367,30 @@ function TeaDetail({
                 </span>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
               </button>
+            )}
+
+            {club && club.gatherings.length > 0 && (
+              <div className="space-y-1.5">
+                <h3 className="text-xs font-medium tracking-wider text-muted-foreground">
+                  티끌 모임에서 마셨어요 · <span className="font-zh">茶會</span>
+                </h3>
+                <ul className="flex flex-wrap gap-1.5">
+                  {club.gatherings.map((g) => (
+                    <li key={g.id}>
+                      <button
+                        onClick={() => club.onOpen(g.id)}
+                        className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm transition hover:border-seal/50 hover:bg-seal/5"
+                      >
+                        <Users className="size-3.5 text-seal" />
+                        <span className="tabular-nums">{g.held_on.replaceAll("-", ".")}</span>
+                        <span className="text-muted-foreground">
+                          {g.title || (g.kind === "regular" ? "정기모임" : "벙개모임")}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             <div className="rounded-lg p-3 text-xs leading-5" style={{ background: meta.soft, color: meta.color }}>
