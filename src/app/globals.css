@@ -11,6 +11,7 @@
   --font-serif: var(--font-noto-serif), ui-serif, serif;
   --font-zh: var(--font-noto-serif-sc), var(--font-noto-serif), serif;
   --font-heading: var(--font-noto-serif), ui-serif, serif;
+  --font-display: var(--font-instrument), var(--font-noto-serif), ui-serif, serif;
   --color-seal: var(--seal);
   --color-map-sea: var(--map-sea);
   --color-map-land: var(--map-land);
@@ -53,49 +54,49 @@
 }
 
 :root {
-  /* 쌀종이(宣紙) 바탕에 찻잎·찻물 색 */
+  /* 백자(白磁) 바탕에 먹색 글씨, 찻잎 초록 */
   --background: oklch(0.972 0.013 85);
-  --foreground: oklch(0.27 0.03 55);
+  --foreground: oklch(0.23 0.018 160);
   --card: oklch(0.988 0.008 85);
-  --card-foreground: oklch(0.27 0.03 55);
+  --card-foreground: oklch(0.23 0.018 160);
   --popover: oklch(0.988 0.008 85);
-  --popover-foreground: oklch(0.27 0.03 55);
-  --primary: oklch(0.47 0.085 138); /* 말차 */
-  --primary-foreground: oklch(0.98 0.012 90);
-  --secondary: oklch(0.935 0.03 135); /* 연잎 */
-  --secondary-foreground: oklch(0.32 0.06 140);
+  --popover-foreground: oklch(0.23 0.018 160);
+  --primary: oklch(0.43 0.075 158); /* 찻잎 */
+  --primary-foreground: oklch(0.985 0.006 120);
+  --secondary: oklch(0.945 0.022 155); /* 청자 */
+  --secondary-foreground: oklch(0.33 0.06 158);
   --muted: oklch(0.945 0.016 80);
-  --muted-foreground: oklch(0.52 0.03 60);
-  --accent: oklch(0.925 0.035 78); /* 볶은 보리 */
-  --accent-foreground: oklch(0.3 0.04 55);
+  --muted-foreground: oklch(0.53 0.018 150);
+  --accent: oklch(0.925 0.035 78);
+  --accent-foreground: oklch(0.26 0.03 158);
   --destructive: oklch(0.55 0.17 30);
   --border: oklch(0.885 0.022 78);
   --input: oklch(0.87 0.024 78);
-  --ring: oklch(0.6 0.08 138);
-  --chart-1: oklch(0.55 0.1 135);
-  --chart-2: oklch(0.62 0.12 75);
-  --chart-3: oklch(0.52 0.08 180);
-  --chart-4: oklch(0.52 0.14 35);
-  --chart-5: oklch(0.38 0.04 50);
+  --ring: oklch(0.58 0.07 158);
+  --chart-1: oklch(0.55 0.09 155);
+  --chart-2: oklch(0.72 0.13 80);
+  --chart-3: oklch(0.55 0.07 195);
+  --chart-4: oklch(0.55 0.14 35);
+  --chart-5: oklch(0.38 0.03 150);
   --radius: 0.75rem;
   --sidebar: oklch(0.96 0.015 85);
-  --sidebar-foreground: oklch(0.27 0.03 55);
-  --sidebar-primary: oklch(0.47 0.085 138);
-  --sidebar-primary-foreground: oklch(0.98 0.012 90);
+  --sidebar-foreground: oklch(0.23 0.018 160);
+  --sidebar-primary: oklch(0.43 0.075 158);
+  --sidebar-primary-foreground: oklch(0.985 0.006 120);
   --sidebar-accent: oklch(0.925 0.035 78);
-  --sidebar-accent-foreground: oklch(0.3 0.04 55);
+  --sidebar-accent-foreground: oklch(0.26 0.03 158);
   --sidebar-border: oklch(0.885 0.022 78);
-  --sidebar-ring: oklch(0.6 0.08 138);
+  --sidebar-ring: oklch(0.58 0.07 158);
 
-  /* 지도 */
-  --map-sea: oklch(0.87 0.05 230);
-  --map-land: oklch(0.985 0.01 85);
-  --map-world: oklch(0.91 0.04 135); /* 중국 밖 육지 */
-  --map-world-stroke: oklch(0.8 0.045 135);
-  --map-land-hover: oklch(0.93 0.035 120);
-  --map-stroke: oklch(0.78 0.03 70);
-  --map-label: oklch(0.42 0.03 55);
-  --seal: oklch(0.53 0.17 30); /* 낙관 인주 */
+  /* 지도: 물안개 낀 청자빛 바다 */
+  --map-sea: oklch(0.915 0.022 195);
+  --map-land: oklch(0.997 0.002 100);
+  --map-world: oklch(0.945 0.012 150); /* 중국 밖 육지 */
+  --map-world-stroke: oklch(0.87 0.015 150);
+  --map-land-hover: oklch(0.955 0.03 150);
+  --map-stroke: oklch(0.84 0.012 120);
+  --map-label: oklch(0.4 0.02 155);
+  --seal: oklch(0.54 0.165 30); /* 낙관 인주 */
   /* 차가 있는 구역의 다류별 바탕색 */
   --tint-green: #e3ebcf;
   --tint-white: #f1ebdc;
@@ -108,36 +109,36 @@
 .dark {
   /* 우린 보이차 빛 */
   --background: oklch(0.2 0.018 55);
-  --foreground: oklch(0.93 0.015 85);
+  --foreground: oklch(0.94 0.008 110);
   --card: oklch(0.24 0.02 55);
-  --card-foreground: oklch(0.93 0.015 85);
+  --card-foreground: oklch(0.94 0.008 110);
   --popover: oklch(0.24 0.02 55);
-  --popover-foreground: oklch(0.93 0.015 85);
-  --primary: oklch(0.74 0.11 130);
-  --primary-foreground: oklch(0.22 0.03 130);
-  --secondary: oklch(0.3 0.03 135);
-  --secondary-foreground: oklch(0.9 0.04 130);
+  --popover-foreground: oklch(0.94 0.008 110);
+  --primary: oklch(0.8 0.1 150);
+  --primary-foreground: oklch(0.2 0.03 160);
+  --secondary: oklch(0.27 0.03 158);
+  --secondary-foreground: oklch(0.9 0.04 150);
   --muted: oklch(0.27 0.018 55);
-  --muted-foreground: oklch(0.7 0.025 75);
+  --muted-foreground: oklch(0.7 0.015 140);
   --accent: oklch(0.31 0.03 65);
-  --accent-foreground: oklch(0.93 0.015 85);
+  --accent-foreground: oklch(0.94 0.008 110);
   --destructive: oklch(0.65 0.17 30);
   --border: oklch(0.34 0.022 60);
   --input: oklch(0.36 0.024 60);
-  --ring: oklch(0.6 0.09 130);
-  --chart-1: oklch(0.7 0.11 130);
-  --chart-2: oklch(0.75 0.12 80);
-  --chart-3: oklch(0.68 0.08 180);
-  --chart-4: oklch(0.66 0.14 35);
-  --chart-5: oklch(0.8 0.03 70);
+  --ring: oklch(0.62 0.09 150);
+  --chart-1: oklch(0.72 0.1 150);
+  --chart-2: oklch(0.78 0.12 80);
+  --chart-3: oklch(0.7 0.07 195);
+  --chart-4: oklch(0.68 0.14 35);
+  --chart-5: oklch(0.82 0.02 120);
   --sidebar: oklch(0.22 0.018 55);
-  --sidebar-foreground: oklch(0.93 0.015 85);
-  --sidebar-primary: oklch(0.74 0.11 130);
-  --sidebar-primary-foreground: oklch(0.22 0.03 130);
+  --sidebar-foreground: oklch(0.94 0.008 110);
+  --sidebar-primary: oklch(0.8 0.1 150);
+  --sidebar-primary-foreground: oklch(0.2 0.03 160);
   --sidebar-accent: oklch(0.31 0.03 65);
-  --sidebar-accent-foreground: oklch(0.93 0.015 85);
+  --sidebar-accent-foreground: oklch(0.94 0.008 110);
   --sidebar-border: oklch(0.34 0.022 60);
-  --sidebar-ring: oklch(0.6 0.09 130);
+  --sidebar-ring: oklch(0.62 0.09 150);
 
   --map-sea: oklch(0.23 0.045 240);
   --map-land: oklch(0.27 0.02 60);
@@ -146,7 +147,7 @@
   --map-land-hover: oklch(0.34 0.04 120);
   --map-stroke: oklch(0.42 0.025 65);
   --map-label: oklch(0.82 0.02 80);
-  --seal: oklch(0.62 0.17 30);
+  --seal: oklch(0.63 0.16 30);
   --tint-green: color-mix(in oklch, #6f8f3a 40%, oklch(0.27 0.02 60));
   --tint-white: color-mix(in oklch, #b5a27a 40%, oklch(0.27 0.02 60));
   --tint-yellow: color-mix(in oklch, #c69a1e 40%, oklch(0.27 0.02 60));
@@ -166,7 +167,7 @@
     @apply font-sans;
   }
 }
-/* 한지 결 */
+/* 찻물이 번진 듯한 은은한 바탕 */
 .paper-grain {
   background-image:
     radial-gradient(circle at 20% 10%, oklch(0.9 0.04 90 / 0.35), transparent 40%),

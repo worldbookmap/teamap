@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_KR, Noto_Serif_KR, Noto_Serif_SC } from "next/font/google";
+import { Instrument_Serif, Noto_Sans_KR, Noto_Serif_KR, Noto_Serif_SC } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -7,6 +7,7 @@ import "./globals.css";
 
 const sans = Noto_Sans_KR({ variable: "--font-noto-sans", subsets: ["latin"], weight: ["400", "500", "700"], preload: false });
 const serif = Noto_Serif_KR({ variable: "--font-noto-serif", subsets: ["latin"], weight: ["400", "600", "700"], preload: false });
+const instrument = Instrument_Serif({ variable: "--font-instrument", subsets: ["latin"], weight: "400", style: ["normal", "italic"] });
 const serifSc = Noto_Serif_SC({ variable: "--font-noto-serif-sc", subsets: ["latin"], weight: ["400", "600", "700"], preload: false });
 
 export const metadata: Metadata = {
@@ -26,7 +27,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="ko" suppressHydrationWarning className={`${sans.variable} ${serif.variable} ${serifSc.variable} h-full antialiased`}>
+    <html lang="ko" suppressHydrationWarning className={`${sans.variable} ${serif.variable} ${serifSc.variable} ${instrument.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <TooltipProvider delayDuration={200}>{children}</TooltipProvider>

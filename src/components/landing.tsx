@@ -78,8 +78,12 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
               茶
             </span>
           </div>
-          <h1 className="mt-4 font-heading text-3xl font-bold tracking-tight sm:text-4xl">Teaggle</h1>
-          <p className="mt-1 font-zh text-sm tracking-[0.5em] text-muted-foreground">中國茶地圖</p>
+          <h1 className="mt-4 font-display text-5xl leading-none tracking-tight sm:text-6xl">
+            Teaggle<span className="text-seal">.</span>
+          </h1>
+          <p className="mt-2 text-[11px] font-medium tracking-[0.25em] text-muted-foreground uppercase">
+            Tea map <span className="font-zh tracking-[0.3em]">· 中國茶地圖</span>
+          </p>
           {/* 운영 클럽 */}
           <a
             href={CLUB.url}
@@ -98,7 +102,7 @@ export function Landing({ entries, onEnter }: { entries: ChangelogEntry[]; onEnt
           <motion.section
             key={entry.date}
             className={cn(
-              "rounded-2xl border border-border/70 bg-card/75 p-5 shadow-[0_10px_40px_-12px_oklch(0.3_0.04_60/0.25)] backdrop-blur-md sm:p-6",
+              "rounded-2xl border border-border/70 bg-card/75 p-5 shadow-[0_20px_50px_-20px_oklch(0.3_0.04_160/0.3)] backdrop-blur-md sm:p-6",
               n === 0 ? "mt-8" : "mt-3",
             )}
             initial={{ opacity: 0, y: 16 }}

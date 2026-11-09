@@ -39,9 +39,9 @@ export function TeaCard({
         onPointerLeave={() => onHover(null)}
         onFocus={() => onHover(tea.id)}
         onBlur={() => onHover(null)}
-        className="group flex w-full gap-3 rounded-xl border bg-card p-2.5 text-left shadow-xs transition hover:-translate-y-px hover:border-primary/40 hover:shadow-md"
+        className="group flex w-full gap-3.5 rounded-2xl border border-border/60 bg-card p-2.5 text-left transition duration-200 hover:border-primary/30 hover:shadow-[0_8px_24px_-12px_color-mix(in_oklch,var(--primary)_35%,transparent)]"
       >
-        <TeaThumb tea={tea} className="size-16 shrink-0 rounded-lg text-[11px] transition group-hover:scale-[1.03]" />
+        <TeaThumb tea={tea} className="size-16 shrink-0 rounded-xl text-[11px] transition duration-300 group-hover:scale-[1.03]" />
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-baseline gap-2">
             <span className="font-zh truncate text-lg font-semibold leading-tight">{tea.name_zh || tea.name_ko}</span>

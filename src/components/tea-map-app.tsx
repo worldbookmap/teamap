@@ -555,8 +555,8 @@ export function TeaMapApp() {
         </section>
 
         {/* 목록 */}
-        <aside className={cn("flex-col bg-background/60 lg:min-h-0 lg:w-[420px] lg:flex-none", presenting ? "hidden" : "flex")}>
-          <div className="space-y-3 border-b p-4">
+        <aside className={cn("flex-col bg-card/50 lg:min-h-0 lg:w-[420px] lg:flex-none", presenting ? "hidden" : "flex")}>
+          <div className="space-y-3.5 border-b border-border/70 p-5">
             <AnimatePresence mode="wait">
               <motion.div
                 key={regionCode}
@@ -566,8 +566,8 @@ export function TeaMapApp() {
                 transition={{ duration: 0.2 }}
               >
                 <div className="flex items-baseline gap-2">
-                  <h2 className="font-zh text-2xl font-bold">{curName}</h2>
-                  <span className="font-heading text-lg text-muted-foreground">
+                  <h2 className="font-zh text-[1.75rem] leading-tight font-semibold tracking-tight">{curName}</h2>
+                  <span className="text-sm font-medium text-muted-foreground">
                     {regionCode === CHINA ? "중국 전역" : conv?.toHangul(curName)}
                   </span>
                 </div>
@@ -576,9 +576,9 @@ export function TeaMapApp() {
             </AnimatePresence>
 
             <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                className="bg-card pl-8"
+                className="h-10 rounded-full border-transparent bg-muted pl-10 shadow-none focus-visible:border-ring focus-visible:bg-card"
                 placeholder="차·지역 검색 (용정, 龍井, 龙井…)"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -629,7 +629,7 @@ export function TeaMapApp() {
           </div>
 
           {/* 모바일은 페이지 전체가 스크롤, 데스크톱은 목록만 스크롤 */}
-          <div className="p-4 pb-6 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+          <div className="p-4 pb-6 sm:px-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
             {inRegion.length > 0 ? (
               <motion.ul layout className="space-y-2">
                 <AnimatePresence initial={false} mode="popLayout">
@@ -933,31 +933,29 @@ function Header({
 }) {
   const { resolvedTheme, setTheme } = useTheme();
   return (
-    <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b bg-card/70 px-4 py-2.5 backdrop-blur">
+    <header className="relative z-30 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 bg-background/80 px-4 py-2 backdrop-blur-xl backdrop-saturate-150 sm:px-5">
       <button
         type="button"
         onClick={onHome}
         aria-label="처음 지도로"
-        className="flex min-w-0 items-center gap-3 rounded-lg text-left outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring max-sm:flex-1 max-sm:basis-0"
+        className="flex min-w-0 items-center gap-2.5 rounded-lg text-left outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring max-sm:flex-1 max-sm:basis-0"
       >
         <motion.img
           src="/teaggle.jpg"
           alt="Teaggle Club"
-          width={40}
-          height={40}
+          width={36}
+          height={36}
           initial={{ rotate: -12, scale: 0.8, opacity: 0 }}
           animate={{ rotate: 0, scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 18 }}
-          className="size-10 shrink-0 rounded-full bg-white object-cover shadow-sm ring-1 ring-border"
+          className="size-9 shrink-0 rounded-full bg-white object-cover ring-1 ring-border"
         />
-        <div className="min-w-0 leading-tight">
-          <h1 className="truncate font-heading text-lg font-bold whitespace-nowrap">Teaggle</h1>
-          <p className="truncate text-xs whitespace-nowrap text-muted-foreground">
-            <span className="font-zh tracking-[0.3em]">中國茶地圖</span>
-            <span className="hidden sm:inline">
-              <span className="mx-1.5 text-border">·</span>
-              <b className="font-semibold text-seal">{CLUB.name}</b> {CLUB.en}
-            </span>
+        <div className="min-w-0 leading-none">
+          <h1 className="truncate font-display text-[1.9rem] leading-[0.9] tracking-tight whitespace-nowrap">
+            Teaggle<span className="text-seal">.</span>
+          </h1>
+          <p className="mt-0.5 truncate text-[10px] font-medium tracking-[0.18em] whitespace-nowrap text-muted-foreground uppercase">
+            Tea map <span className="font-zh tracking-[0.25em] max-sm:hidden">· 中國茶地圖</span>
           </p>
         </div>
       </button>
@@ -1030,7 +1028,7 @@ function ViewTabs({ view, onView, gatheringCount }: { view: View; onView: (v: Vi
     { id: "club" as const, label: "티끌 모임", icon: Users },
   ];
   return (
-    <div role="tablist" aria-label="화면" className="flex rounded-full border bg-muted/60 p-0.5 max-sm:order-last max-sm:w-full">
+    <div role="tablist" aria-label="화면" className="flex rounded-full bg-muted p-1 max-sm:order-last max-sm:w-full">
       {tabs.map(({ id, label, icon: Icon }) => {
         const active = view === id;
         return (
@@ -1040,7 +1038,7 @@ function ViewTabs({ view, onView, gatheringCount }: { view: View; onView: (v: Vi
             aria-selected={active}
             onClick={() => onView(id)}
             className={cn(
-              "relative flex items-center justify-center gap-1.5 rounded-full px-3.5 py-1 text-sm transition-colors max-sm:flex-1",
+              "relative flex items-center justify-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-medium transition-colors max-sm:flex-1",
               active ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -1054,7 +1052,7 @@ function ViewTabs({ view, onView, gatheringCount }: { view: View; onView: (v: Vi
             <Icon className={cn("relative size-3.5", active && id === "club" && "text-seal", active && id === "map" && "text-primary")} />
             <span className="relative">{label}</span>
             {id === "club" && gatheringCount > 0 && (
-              <span className="relative text-xs font-normal text-muted-foreground tabular-nums">{gatheringCount}</span>
+              <span className={cn("relative text-xs font-normal tabular-nums", "text-muted-foreground")}>{gatheringCount}</span>
             )}
           </button>
         );
@@ -1081,8 +1079,8 @@ function FilterChip({
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
       className={cn(
-        "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition",
-        active ? "border-transparent font-semibold" : "bg-card hover:bg-muted",
+        "flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition",
+        active ? "border-transparent" : "border-border/80 bg-card text-foreground/80 hover:border-foreground/20 hover:text-foreground",
         active && !color && "bg-primary text-primary-foreground",
       )}
       style={active && color ? { background: soft, color, boxShadow: `inset 0 0 0 1px ${color}` } : undefined}
@@ -1096,11 +1094,11 @@ function Legend({ large }: { large?: boolean }) {
   return (
     <div
       className={cn(
-        "absolute bottom-3 left-3 hidden origin-bottom-left flex-col gap-1 rounded-lg border bg-card/90 px-3 py-2 text-xs shadow-sm backdrop-blur sm:flex",
+        "absolute bottom-3 left-3 hidden origin-bottom-left flex-col gap-1 rounded-xl border border-border/70 bg-card/85 px-3 py-2.5 text-xs shadow-[0_8px_24px_-12px_rgb(0_0_0/0.15)] backdrop-blur-md sm:flex",
         large && "scale-150",
       )}
     >
-      <span className="mb-0.5 font-medium text-muted-foreground">6대 다류 · 六大茶類</span>
+      <span className="mb-1 text-[10px] font-medium tracking-[0.15em] text-muted-foreground uppercase">6대 다류 · 六大茶類</span>
       {TEA_CATEGORIES.map((c) => (
         <span key={c} className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-full" style={{ background: CATEGORY_META[c].color }} />
@@ -1114,7 +1112,7 @@ function Legend({ large }: { large?: boolean }) {
 
 function Footer() {
   return (
-    <footer className="shrink-0 border-t bg-card/70 px-4 pt-2.5 pb-[calc(0.6rem+env(safe-area-inset-bottom))] backdrop-blur">
+    <footer className="shrink-0 border-t border-border/70 bg-background/80 px-4 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-xl">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-4 gap-y-2 sm:justify-between">
         {/* 운영 클럽 */}
         <a href={CLUB.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-2.5">
@@ -1123,10 +1121,10 @@ function Footer() {
             alt=""
             width={32}
             height={32}
-            className="size-8 rounded-full bg-white object-cover ring-2 ring-seal/25 transition group-hover:ring-seal/60"
+            className="size-7 rounded-full bg-white object-cover ring-1 ring-border transition group-hover:ring-seal/50"
           />
           <span className="leading-tight">
-            <span className="block text-[10px] tracking-wider text-muted-foreground">이 지도를 운영하는 차 모임</span>
+            <span className="block text-[10px] text-muted-foreground">이 지도를 운영하는 차 모임</span>
             <span className="text-sm font-semibold">
               <span className="text-seal">{CLUB.name}</span> {CLUB.en}
             </span>
