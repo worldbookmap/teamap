@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Factory, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Factory, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
 import { Stars } from "@/components/tasting/star-rating";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,22 @@ import { TastingList } from "@/components/tasting/tasting-list";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORY_META } from "@/lib/categories";
+import type { TheteaIndex } from "@/lib/thetea";
 import type { RegionIndex } from "@/lib/regions";
 import { originKey } from "@/lib/towns";
 import type { Tasting, Tea, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { CategoryBadge, TeaSeal, TeaThumb } from "./tea-visual";
+import { TheteaPanel } from "./thetea-panel";
 
-export type DetailTab = "info" | "products" | "tastings";
+export type DetailTab = "info" | "thetea" | "products" | "tastings";
+
+/** 「백과」 탭 (thetea.app 백과사전)에 필요한 것들 */
+export interface TheteaTab {
+  index: TheteaIndex | null;
+  error: string | null;
+  onLink: (tea: Tea, slug: string | null) => Promise<void>;
+}
 
 /** 제품(하위 차) 탭에 필요한 것들 */
 export interface ProductPanel {
@@ -51,6 +60,7 @@ export function TeaDetailDialog({
   onShowOrigin,
   tasting,
   product,
+  thetea,
 }: {
   tea: Tea | null;
   onOpenChange: (open: boolean) => void;
@@ -61,6 +71,7 @@ export function TeaDetailDialog({
   onShowOrigin: (origin: TeaOrigin) => void;
   tasting: TastingPanel;
   product: ProductPanel;
+  thetea: TheteaTab;
 }) {
   return (
     <Dialog open={!!tea} onOpenChange={onOpenChange}>
@@ -76,6 +87,7 @@ export function TeaDetailDialog({
             onShowOrigin={onShowOrigin}
             tasting={tasting}
             product={product}
+            thetea={thetea}
           />
         )}
       </DialogContent>
@@ -92,6 +104,7 @@ function TeaDetail({
   onShowOrigin,
   tasting,
   product,
+  thetea,
 }: {
   tea: Tea;
   regions: RegionIndex | null;
@@ -101,11 +114,13 @@ function TeaDetail({
   onShowOrigin: (origin: TeaOrigin) => void;
   tasting: TastingPanel;
   product: ProductPanel;
+  thetea: TheteaTab;
 }) {
   const [index, setIndex] = useState(0);
   const [dir, setDir] = useState(1);
   const [confirming, setConfirming] = useState(false);
   const meta = CATEGORY_META[tea.category];
+  const theteaEntry = thetea.index?.linked(tea).entry ?? null;
   const images = tea.images;
   const go = (d: number) => {
     setDir(d);
@@ -208,6 +223,10 @@ function TeaDetail({
         <Tabs value={tasting.tab} onValueChange={(v) => tasting.onTabChange(v as DetailTab)}>
           <TabsList className="w-full">
             <TabsTrigger value="info">차 정보</TabsTrigger>
+            <TabsTrigger value="thetea">
+              <BookOpen className="size-3.5" />
+              백과
+            </TabsTrigger>
             {!product.parent && (
               <TabsTrigger value="products">
                 제품{product.products.length > 0 && <span className="text-primary">{product.products.length}</span>}
@@ -217,6 +236,16 @@ function TeaDetail({
               마신 기록{tasting.tastings.length > 0 && <span className="text-primary">{tasting.tastings.length}</span>}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="thetea" className="pt-3">
+            <TheteaPanel
+              tea={tea}
+              index={thetea.index}
+              indexError={thetea.error}
+              admin={admin}
+              onLink={(slug) => thetea.onLink(tea, slug)}
+            />
+          </TabsContent>
 
           <TabsContent value="tastings" className="pt-3">
             <TastingList
@@ -311,6 +340,22 @@ function TeaDetail({
 
             {tea.description && (
               <p className="whitespace-pre-line leading-7 text-foreground/90">{tea.description}</p>
+            )}
+
+            {theteaEntry && (
+              <button
+                onClick={() => tasting.onTabChange("thetea")}
+                className="flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition hover:border-primary/40 hover:bg-muted/40"
+              >
+                <BookOpen className="size-4 shrink-0 text-primary" />
+                <span className="min-w-0 flex-1">
+                  <span className="text-muted-foreground">백과사전 </span>
+                  <b className="font-medium">{theteaEntry.k}</b>
+                  {theteaEntry.c && <span className="font-zh text-muted-foreground"> {theteaEntry.c}</span>}
+                  <span className="block text-xs text-muted-foreground">분류·역사·제다·맛·우리는 법·보관까지 장별로 정리된 글</span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+              </button>
             )}
 
             <div className="rounded-lg p-3 text-xs leading-5" style={{ background: meta.soft, color: meta.color }}>

@@ -15,6 +15,7 @@ export async function buildSeedTeas(): Promise<TeaInput[]> {
     images: [],
     parent_id: null,
     maker: "",
+    thetea_slug: null,
     origins: t.origins.map((code) => makeOrigin(regions, conv, code)).filter((o): o is TeaOrigin => !!o),
   }));
 }

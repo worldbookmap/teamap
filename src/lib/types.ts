@@ -38,6 +38,11 @@ export interface Tea {
   parent_id: string | null;
   /** 제조사·차창 (예: 勐海茶厂) */
   maker: string;
+  /**
+   * 연결한 thetea.app 백과사전 글 (예: xihu-longjing).
+   * null 이면 이름으로 자동으로 찾고, 빈 문자열이면 연결하지 않음
+   */
+  thetea_slug: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -11,12 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { CATEGORY_META } from "@/lib/categories";
 import type { HanjaConverter } from "@/lib/hanja";
+import type { TheteaIndex } from "@/lib/thetea";
 import type { RegionIndex, RegionSearchItem } from "@/lib/regions";
 import { TEA_CATEGORIES, type Tea, type TeaInput, type TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ImageField } from "./image-field";
 import { NameFields } from "./name-fields";
 import { OriginPicker } from "./origin-picker";
+import { TheteaField } from "./thetea-field";
 
 /** 새 차. 제품(parent 있음)이면 상위 차의 다류·산지를 기본값으로 */
 const empty = (origins: TeaOrigin[] = [], parent?: Tea | null): TeaInput => ({
@@ -29,6 +31,7 @@ const empty = (origins: TeaOrigin[] = [], parent?: Tea | null): TeaInput => ({
   origins: parent ? parent.origins : origins,
   parent_id: parent?.id ?? null,
   maker: "",
+  thetea_slug: null,
 });
 
 export function TeaFormDialog({
@@ -41,6 +44,7 @@ export function TeaFormDialog({
   conv,
   regions,
   regionSearch,
+  theteaIndex,
   onSaved,
 }: {
   open: boolean;
@@ -54,6 +58,7 @@ export function TeaFormDialog({
   conv: HanjaConverter | null;
   regions: RegionIndex | null;
   regionSearch: RegionSearchItem[];
+  theteaIndex: TheteaIndex | null;
   onSaved: (tea: Tea) => void;
 }) {
   return (
@@ -69,6 +74,7 @@ export function TeaFormDialog({
             conv={conv}
             regions={regions}
             regionSearch={regionSearch}
+            theteaIndex={theteaIndex}
             onCancel={() => onOpenChange(false)}
             onSaved={(t) => {
               onSaved(t);
@@ -89,6 +95,7 @@ function TeaForm({
   conv,
   regions,
   regionSearch,
+  theteaIndex,
   onCancel,
   onSaved,
 }: {
@@ -99,6 +106,7 @@ function TeaForm({
   conv: HanjaConverter | null;
   regions: RegionIndex | null;
   regionSearch: RegionSearchItem[];
+  theteaIndex: TheteaIndex | null;
   onCancel: () => void;
   onSaved: (tea: Tea) => void;
 }) {
@@ -143,6 +151,16 @@ function TeaForm({
         conv={conv}
         onChange={(n) => setForm((f) => ({ ...f, ...n }))}
       />
+
+      <div className="space-y-1.5">
+        <Label>thetea.app 백과사전</Label>
+        <TheteaField
+          value={form}
+          index={theteaIndex}
+          onChange={(slug) => set("thetea_slug", slug)}
+          onFill={(f) => setForm((cur) => ({ ...cur, ...(f.category && { category: f.category }), ...(f.description && { description: f.description }) }))}
+        />
+      </div>
 
       {isProduct && (
         <div className="space-y-1.5">

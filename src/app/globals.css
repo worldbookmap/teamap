@@ -190,3 +190,77 @@
     filter: none;
   }
 }
+
+/* thetea.app 백과사전 본문 */
+.thetea-prose {
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: color-mix(in oklch, var(--foreground) 90%, transparent);
+  overflow-wrap: anywhere;
+}
+.thetea-prose > * + * {
+  margin-top: 0.6em;
+}
+.thetea-prose ul,
+.thetea-prose ol {
+  padding-left: 1.1em;
+}
+.thetea-prose ul {
+  list-style: disc;
+}
+.thetea-prose ol {
+  list-style: decimal;
+}
+.thetea-prose li + li {
+  margin-top: 0.45em;
+}
+.thetea-prose li > ul,
+.thetea-prose li > ol {
+  margin-top: 0.35em;
+}
+.thetea-prose li::marker {
+  color: var(--muted-foreground);
+}
+.thetea-prose li p + p,
+.thetea-prose li p + ul {
+  margin-top: 0.4em;
+}
+.thetea-prose strong {
+  font-weight: 600;
+  color: var(--foreground);
+}
+.thetea-prose a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklch, var(--primary) 35%, transparent);
+  text-underline-offset: 2px;
+}
+.thetea-prose a:hover {
+  text-decoration-color: currentColor;
+}
+.thetea-prose h3,
+.thetea-prose h4 {
+  font-weight: 600;
+  margin-top: 1em;
+}
+.thetea-prose table {
+  width: 100%;
+  font-size: 0.85em;
+  border-collapse: collapse;
+}
+.thetea-prose th,
+.thetea-prose td {
+  border: 1px solid var(--border);
+  padding: 0.3em 0.5em;
+  text-align: left;
+}
+mark.thetea-hit {
+  background: color-mix(in oklch, var(--chart-2) 45%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+mark.thetea-hit[data-current] {
+  background: var(--chart-2);
+  outline: 2px solid var(--chart-2);
+}

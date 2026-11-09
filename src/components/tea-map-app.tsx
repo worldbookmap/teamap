@@ -29,6 +29,8 @@ import { api } from "@/lib/api";
 import { CATEGORY_META } from "@/lib/categories";
 import { buildRegionSearch, CHINA, makeOrigin, regionPath } from "@/lib/regions";
 import { categoryCounts, matchesQuery, teasInRegion } from "@/lib/tea-utils";
+import { fold } from "@/lib/thetea";
+import { useTheteaIndex } from "@/hooks/use-thetea";
 import { TEA_CATEGORIES, type RegionMap, type Tasting, type Tea, type TeaCategory, type TeaOrigin } from "@/lib/types";
 import { originKey, type TownFocus } from "@/lib/towns";
 import { cn } from "@/lib/utils";
@@ -42,6 +44,7 @@ export function TeaMapApp() {
   const bundle = useConverter();
   const conv = bundle?.conv ?? null;
   const regions = bundle?.regions ?? null;
+  const thetea = useTheteaIndex(conv);
 
   const [teas, setTeas] = useState<Tea[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,18 +154,21 @@ export function TeaMapApp() {
         }),
     [teas, productsOf],
   );
-  /** 검색은 제품 이름·제조사로도 */
+  /** 검색은 제품 이름·제조사와 백과사전 이름(한국어·병음)으로도 */
   const matchesFamily = useCallback(
     (t: Tea) => {
       const simplify = conv?.simplify.bind(conv);
+      const q = fold(query);
+      const entry = q && thetea.index?.linked(t).entry;
       return (
         matchesQuery(t, query, simplify) ||
+        (!!entry && (fold(entry.k).includes(q) || fold(entry.t).includes(q))) ||
         (productsOf.get(t.id) ?? []).some(
           (p) => matchesQuery(p, query, simplify) || (!!query.trim() && p.maker.includes(query.trim())),
         )
       );
     },
-    [conv, query, productsOf],
+    [conv, query, productsOf, thetea.index],
   );
 
   // 등록된 차 이름도 한글→한자 사전에 넣어 둡니다
@@ -655,6 +661,11 @@ export function TeaMapApp() {
         admin={admin}
         onEdit={(t) => setForm({ open: true, tea: t, parent: detailParent })}
         onDelete={onDelete}
+        thetea={{
+          index: thetea.index,
+          error: thetea.error,
+          onLink: async (t, slug) => onSaved(await api.updateTea(t.id, { thetea_slug: slug })),
+        }}
         product={{
           parent: detailParent,
           products: detail && !detail.parent_id ? (productsOf.get(detail.id) ?? []) : [],
@@ -699,6 +710,7 @@ export function TeaMapApp() {
         conv={conv}
         regions={regions}
         regionSearch={regionSearch}
+        theteaIndex={thetea.index}
         onSaved={onSaved}
       />
       <TastingFormDialog

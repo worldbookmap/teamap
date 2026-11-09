@@ -1,3 +1,4 @@
+import { isTheteaSlug } from "./thetea";
 import {
   TEA_CATEGORIES,
   type OriginDetail,
@@ -54,6 +55,11 @@ export function parseTeaInput(body: unknown, partial = false): { ok: true; value
   }
   // 상위 차는 처음 만들 때만 정합니다 (수정으로 옮기지 않음)
   if (!partial && "parent_id" in b) out.parent_id = str(b.parent_id, 64) || null;
+  if ("thetea_slug" in b) {
+    const s = b.thetea_slug == null ? null : str(b.thetea_slug, 120);
+    if (s && !isTheteaSlug(s)) return { ok: false, error: "백과사전 글 주소가 올바르지 않습니다." };
+    out.thetea_slug = s;
+  }
   if ("category" in b) {
     if (!TEA_CATEGORIES.includes(b.category as TeaCategory)) return { ok: false, error: "다류를 선택해 주세요." };
     out.category = b.category as TeaCategory;
@@ -78,6 +84,7 @@ export function parseTeaInput(body: unknown, partial = false): { ok: true; value
     out.origins ??= [];
     out.parent_id ??= null;
     out.maker ??= "";
+    out.thetea_slug ??= null;
   }
   return { ok: true, value: out };
 }
