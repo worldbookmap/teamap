@@ -9,6 +9,7 @@ const TASTINGS = "tastings";
 const TASTINGS_MIGRATION = "supabase/migrations/20261028010000_tastings.sql";
 const PRODUCTS_MIGRATION = "supabase/migrations/20261028020000_tea_products.sql";
 const THETEA_MIGRATION = "supabase/migrations/20261109000000_thetea.sql";
+const FIGURES_MIGRATION = "supabase/migrations/20261117000000_tea_figures.sql";
 const MAPS = "region_maps";
 const MAPS_MIGRATION = "supabase/migrations/20261028030000_region_maps.sql";
 const GATHERINGS = "gatherings";
@@ -41,6 +42,9 @@ function check<T>({ data, error }: { data: T; error: { message: string; code?: s
   if (error?.code === "PGRST204" && /thetea_slug/.test(error.message)) {
     throw new MissingTableError("백과사전 연결용 컬럼(thetea_slug)", THETEA_MIGRATION);
   }
+  if (error?.code === "PGRST204" && /figures/.test(error.message)) {
+    throw new MissingTableError("설명 사진용 컬럼(figures)", FIGURES_MIGRATION);
+  }
   if (error) throw new Error(error.message);
   return data;
 }
@@ -50,8 +54,14 @@ const normTasting = (t: Tasting): Tasting => ({ ...t, rating: t.rating == null ?
 
 const normGathering = (g: Gathering): Gathering => ({ ...g, teas: Array.isArray(g.teas) ? g.teas : [], time: g.time ?? "" });
 
-/** 마이그레이션 전 행에는 parent_id·maker·thetea_slug 가 없을 수 있습니다 */
-const normTea = (t: Tea): Tea => ({ ...t, parent_id: t.parent_id ?? null, maker: t.maker ?? "", thetea_slug: t.thetea_slug ?? null });
+/** 마이그레이션 전 행에는 parent_id·maker·thetea_slug·figures 가 없을 수 있습니다 */
+const normTea = (t: Tea): Tea => ({
+  ...t,
+  parent_id: t.parent_id ?? null,
+  maker: t.maker ?? "",
+  thetea_slug: t.thetea_slug ?? null,
+  figures: Array.isArray(t.figures) ? t.figures : [],
+});
 
 /** 제품 기능 마이그레이션 전이면 기본값과 같은 필드는 빼고 보냅니다 (기존 기능은 계속 작동) */
 function withoutDefaultProductFields<T extends Partial<TeaInput>>(input: T): T {
@@ -61,7 +71,7 @@ function withoutDefaultProductFields<T extends Partial<TeaInput>>(input: T): T {
   return out;
 }
 
-/** 백과사전 컬럼 마이그레이션 전이면, 자동 연결(null)일 때 그 필드를 빼고 다시 시도합니다 */
+/** 백과사전·설명 사진 컬럼 마이그레이션 전이면, 기본값일 때 그 필드를 빼고 다시 시도합니다 */
 async function withTheteaFallback<R extends { error: { message: string; code?: string } | null }>(
   input: Partial<TeaInput>,
   run: (input: Partial<TeaInput>) => PromiseLike<R>,
@@ -70,7 +80,13 @@ async function withTheteaFallback<R extends { error: { message: string; code?: s
   if (res.error?.code === "PGRST204" && /thetea_slug/.test(res.error.message) && input.thetea_slug == null) {
     const rest = { ...input };
     delete rest.thetea_slug;
-    return run(rest);
+    return withTheteaFallback(rest, run);
+  }
+  // 설명 사진 마이그레이션 전이어도 설명 사진이 없는 차는 그대로 저장
+  if (res.error?.code === "PGRST204" && /figures/.test(res.error.message) && !input.figures?.length) {
+    const rest = { ...input };
+    delete rest.figures;
+    return withTheteaFallback(rest, run);
   }
   return res;
 }

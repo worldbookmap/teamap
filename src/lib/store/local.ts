@@ -23,7 +23,7 @@ function serial<T>(fn: () => Promise<T>): Promise<T> {
 async function readAll(): Promise<Tea[]> {
   try {
     const teas: Tea[] = JSON.parse(await fs.readFile(DB_FILE, "utf8"));
-    return teas.map((t) => ({ ...t, parent_id: t.parent_id ?? null, maker: t.maker ?? "", thetea_slug: t.thetea_slug ?? null }));
+    return teas.map((t) => ({ ...t, parent_id: t.parent_id ?? null, maker: t.maker ?? "", thetea_slug: t.thetea_slug ?? null, figures: t.figures ?? [] }));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     const now = new Date().toISOString();

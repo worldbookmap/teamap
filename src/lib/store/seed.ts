@@ -13,6 +13,7 @@ export async function buildSeedTeas(): Promise<TeaInput[]> {
     category: t.category,
     description: t.description,
     images: [],
+    figures: [],
     parent_id: null,
     maker: "",
     thetea_slug: null,

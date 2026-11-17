@@ -15,6 +15,7 @@ import type { TheteaIndex } from "@/lib/thetea";
 import type { RegionIndex, RegionSearchItem } from "@/lib/regions";
 import { TEA_CATEGORIES, type Tea, type TeaInput, type TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { FigureField } from "./figure-field";
 import { ImageField } from "./image-field";
 import { NameFields } from "./name-fields";
 import { OriginPicker } from "./origin-picker";
@@ -28,6 +29,7 @@ const empty = (origins: TeaOrigin[] = [], parent?: Tea | null): TeaInput => ({
   category: parent?.category ?? "green",
   description: "",
   images: [],
+  figures: [],
   origins: parent ? parent.origins : origins,
   parent_id: parent?.id ?? null,
   maker: "",
@@ -251,6 +253,12 @@ function TeaForm({
             설명 속 한자에 한글 독음 달기 — 예: 岩韻 → 암운(岩韻)
           </button>
         )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>설명 사진</Label>
+        <p className="text-xs text-muted-foreground">설명을 돕는 사진에 한 장씩 설명을 달 수 있어요. 차 정보의 설명 아래에 표시돼요.</p>
+        <FigureField value={form.figures} onChange={(v) => set("figures", v)} />
       </div>
 
       <DialogFooter>

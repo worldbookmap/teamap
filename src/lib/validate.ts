@@ -9,6 +9,7 @@ import {
   type RegionMapInput,
   type TastingInput,
   type TeaCategory,
+  type TeaFigure,
   type TeaInput,
   type TeaOrigin,
 } from "./types";
@@ -73,6 +74,18 @@ export function parseTeaInput(body: unknown, partial = false): { ok: true; value
       ? b.images.map((u) => str(u, 2000)).filter((u) => /^(https?:\/\/|\/api\/uploads\/)/.test(u))
       : [];
   }
+  if ("figures" in b) {
+    const list = Array.isArray(b.figures) ? b.figures : [];
+    out.figures = list
+      .map((v): TeaFigure | null => {
+        if (!v || typeof v !== "object") return null;
+        const f = v as Record<string, unknown>;
+        const src = str(f.src, 2000);
+        return /^(https?:\/\/|\/api\/uploads\/)/.test(src) ? { src, caption: str(f.caption, 1000) } : null;
+      })
+      .filter((f): f is TeaFigure => !!f)
+      .slice(0, 50);
+  }
   if ("origins" in b) {
     out.origins = Array.isArray(b.origins) ? b.origins.map(origin).filter((o): o is TeaOrigin => !!o) : [];
   }
@@ -85,6 +98,7 @@ export function parseTeaInput(body: unknown, partial = false): { ok: true; value
     out.name_ko ??= "";
     out.description ??= "";
     out.images ??= [];
+    out.figures ??= [];
     out.origins ??= [];
     out.parent_id ??= null;
     out.maker ??= "";

@@ -9,6 +9,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-17",
+    items: [
+      "차마다 '설명 사진'을 올릴 수 있어요. 찻잎·탕색·엽저·포장·차밭 사진에 한 장씩 설명을 달면 차 정보의 설명 아래에 모아 보이고, 누르면 크게 볼 수 있어요.",
+    ],
+  },
+  {
     date: "2026-11-09",
     items: [
       "화면 디자인을 새로 다듬었어요. 맨 위 Teaggle 글씨체와 탭·검색창·차 카드를 더 깔끔하게 바꾸고, 지도 바다는 은은한 청자빛으로 칠했어요.",

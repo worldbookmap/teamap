@@ -14,6 +14,7 @@ import type { RegionIndex } from "@/lib/regions";
 import { originKey } from "@/lib/towns";
 import type { Gathering, Tasting, Tea, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { TeaFigures } from "./tea-figures";
 import { CategoryBadge, TeaSeal, TeaThumb } from "./tea-visual";
 import { TheteaPanel } from "./thetea-panel";
 
@@ -352,6 +353,8 @@ function TeaDetail({
             {tea.description && (
               <p className="whitespace-pre-line leading-7 text-foreground/90">{tea.description}</p>
             )}
+
+            <TeaFigures figures={tea.figures} />
 
             {theteaEntry && (
               <button

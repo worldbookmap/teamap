@@ -25,6 +25,12 @@ export interface TeaOrigin {
   detail?: OriginDetail;
 }
 
+/** 차 설명을 돕는 사진 (찻잎·탕색·엽저·포장·차밭 등) 과 그 설명 */
+export interface TeaFigure {
+  src: string;
+  caption: string;
+}
+
 export interface Tea {
   id: string;
   name_zh: string; // 간체
@@ -33,6 +39,8 @@ export interface Tea {
   category: TeaCategory;
   description: string;
   images: string[];
+  /** 설명용 사진 (대표 사진과 따로, 설명 아래에 캡션과 함께 표시) */
+  figures: TeaFigure[];
   origins: TeaOrigin[];
   /** 상위 차 (예: 7542 → 普洱茶). 없으면 대표 차 */
   parent_id: string | null;
