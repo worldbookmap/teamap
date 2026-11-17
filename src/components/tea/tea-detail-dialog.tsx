@@ -318,7 +318,14 @@ function TeaDetail({
           <TabsContent value="info" className="space-y-5 pt-3">
             {tea.origins.length > 0 && (
               <div className="space-y-1.5">
-                <h3 className="text-xs font-medium tracking-wider text-muted-foreground">산지 · 産地</h3>
+                <h3 className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium tracking-wider text-muted-foreground">
+                  산지 · 産地
+                  {tea.origins.length > 1 && (
+                    <span className="rounded-full bg-seal/10 px-2 py-0.5 tracking-normal text-seal">
+                      같은 차가 {tea.origins.length}곳에서 나요 · 지도에서 점선으로 이어져요
+                    </span>
+                  )}
+                </h3>
                 <ul className="flex flex-wrap gap-1.5">
                   {groupOrigins(tea.origins).map((group) => {
                     const o = group[0];
