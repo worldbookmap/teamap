@@ -5,7 +5,7 @@ import { MapPin, Search, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { HanjaConverter } from "@/lib/hanja";
-import { LEVEL_KO, searchRegions, type RegionIndex, type RegionSearchItem } from "@/lib/regions";
+import { countryKo, levelLabel, searchRegions, type RegionIndex, type RegionSearchItem } from "@/lib/regions";
 import { loadTownIndex, searchTowns, type TownSearchItem } from "@/lib/towns";
 import { cn } from "@/lib/utils";
 
@@ -145,12 +145,12 @@ export function RegionSearch({
                           <span className="font-zh font-medium">{e.item.zh}</span>
                           <span>{e.item.ko}</span>
                           <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                            {e.kind === "region" ? LEVEL_KO[e.item.level] : e.item.lng != null ? "향·진" : "향·진 (위치 없음)"}
+                            {e.kind === "region" ? levelLabel(e.item.adcode, e.item.level) : e.item.lng != null ? "향·진" : "향·진 (위치 없음)"}
                           </span>
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
                           {e.kind === "region"
-                            ? e.item.full_ko.split(" ").slice(0, -1).join(" ") || "중국"
+                            ? e.item.full_ko.split(" ").slice(0, -1).join(" ") || countryKo(e.item.adcode)
                             : countyLabel(e.item.county)}
                         </span>
                       </span>

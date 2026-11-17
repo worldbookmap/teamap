@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import type { HanjaConverter } from "@/lib/hanja";
-import { CHINA, regionPath, searchRegions, type RegionIndex, type RegionSearchItem } from "@/lib/regions";
+import { CHINA, countryKo, regionPath, searchRegions, type RegionIndex, type RegionSearchItem } from "@/lib/regions";
 import type { RegionMap, RegionMapInput } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +93,14 @@ export function RegionMapsDialog({
                 <MapIcon className="size-5 text-seal" /> 참고 지도
               </DialogTitle>
               <DialogDescription>
-                <span className="font-zh text-foreground">{name}</span> {regionCode !== CHINA && conv?.toHangul(name)} 의 차산 지도·옛
+                {regionCode === CHINA ? (
+                  "전체 지역"
+                ) : (
+                  <>
+                    <span className="font-zh text-foreground">{name}</span> {conv?.toHangul(name)}
+                  </>
+                )}
+                의 차산 지도·옛
                 지도·외부 지도를 모아 두는 곳이에요.
               </DialogDescription>
             </DialogHeader>
@@ -280,7 +287,7 @@ function MapForm({
                       <span className="font-zh font-medium">{r.zh}</span>
                       <span>{r.ko}</span>
                       <span className="ml-auto truncate text-xs text-muted-foreground">
-                        {r.full_ko.split(" ").slice(0, -1).join(" ") || "중국"}
+                        {r.full_ko.split(" ").slice(0, -1).join(" ") || countryKo(r.adcode)}
                       </span>
                     </button>
                   </li>

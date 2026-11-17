@@ -238,7 +238,7 @@ export function joinSegments(segs: Segment[], choices: number[] = []) {
 }
 
 const REGION_SUFFIX =
-  /(特别行政区|维吾尔自治区|壮族自治区|回族自治区|自治区|自治州|自治县|自治旗|地区|新区|林区|省|市|县|区|盟|旗|州)$/;
+  /(特别行政区|维吾尔自治区|壮族自治区|回族自治区|自治区|自治州|自治县|自治旗|地区|新区|林区|省|市|县|区|盟|旗|州|乡|镇)$/;
 
 /** 행정구역 이름에서 접미사를 뗀 짧은 이름 (杭州市 → 杭州, 西双版纳傣族自治州 → 西双版纳) */
 export function shortRegionName(name: string) {

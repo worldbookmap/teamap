@@ -12,7 +12,12 @@ export interface RawRegion {
 }
 export type RegionIndex = Record<string, RawRegion>;
 
+/** 지도 맨 위 단계 (중국 전국 지도에 대만·일본도 함께 그림) */
 export const CHINA = "100000";
+/** 대만: 縣·市 → 鄉·鎮·區 (scripts/fetch-extra-geo.mts) */
+export const TAIWAN = "710000";
+/** 일본: 행정구역 구분 없이 나라 하나 */
+export const JAPAN = "990000";
 
 export function regionPath(index: RegionIndex, adcode: string): string[] {
   const path: string[] = [];
@@ -118,3 +123,13 @@ export const LEVEL_KO: Record<RegionLevel, string> = {
   city: "시",
   district: "현·구",
 };
+
+/** 지역 단계 이름 (대만·일본은 부르는 말이 달라서) */
+export function levelLabel(adcode: string, level: RegionLevel) {
+  if (adcode === JAPAN) return "나라";
+  if (adcode.startsWith("71")) return { province: "대만", city: "현·시", district: "향·진·구" }[level];
+  return LEVEL_KO[level];
+}
+
+/** 맨 위 단계 지역이 속한 나라 이름 (검색 결과에서 상위 지역이 없을 때) */
+export const countryKo = (adcode: string) => (adcode === JAPAN ? "일본" : adcode.startsWith("71") ? "대만" : "중국");

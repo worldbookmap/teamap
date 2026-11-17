@@ -1,6 +1,6 @@
 // 阿里云 DataV 행정구역 경계 데이터를 내려받아 TopoJSON으로 압축해 public/geo 에 저장합니다.
 //   전국(100000) → 성(省) → 지급시(地级市) → 현/구(县/区)
-// 사용법: node scripts/fetch-geo.mjs [--refresh]
+// 사용법: npm run geo:fetch [-- --refresh]  (대만 하위 구역·일본을 더하는 scripts/fetch-extra-geo.mts 까지 이어서 실행)
 import fs from "node:fs/promises";
 import path from "node:path";
 import { topology } from "topojson-server";

@@ -39,8 +39,8 @@ function originDetail(v: unknown): OriginDetail | null {
   if (out.kind === "town" && /^\d{9,12}$/.test(code)) out.code = code;
   const lng = Number(d.lng);
   const lat = Number(d.lat);
-  // 중국 범위 안의 좌표만
-  if (d.lng != null && d.lat != null && lng >= 70 && lng <= 140 && lat >= 0 && lat <= 56) {
+  // 중국·대만·일본 범위 안의 좌표만
+  if (d.lng != null && d.lat != null && lng >= 70 && lng <= 150 && lat >= 0 && lat <= 56) {
     out.lng = Math.round(lng * 1e5) / 1e5;
     out.lat = Math.round(lat * 1e5) / 1e5;
   }

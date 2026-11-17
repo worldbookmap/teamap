@@ -11,7 +11,8 @@ import type { HanjaConverter } from "@/lib/hanja";
 import {
   childrenOf,
   fullName,
-  LEVEL_KO,
+  countryKo,
+  levelLabel,
   makeOrigin,
   searchRegions,
   type RegionIndex,
@@ -162,7 +163,7 @@ export function OriginPicker({
                   <span className="font-zh font-medium">{r.zh}</span>
                   <span>{r.ko}</span>
                   <span className="ml-auto truncate text-xs text-muted-foreground">
-                    {LEVEL_KO[r.level]} · {fullName(regions, r.adcode, conv).split(" ").slice(0, -1).join(" ") || "중국"}
+                    {levelLabel(r.adcode, r.level)} · {fullName(regions, r.adcode, conv).split(" ").slice(0, -1).join(" ") || countryKo(r.adcode)}
                   </span>
                 </button>
               </li>

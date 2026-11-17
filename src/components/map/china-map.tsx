@@ -13,7 +13,7 @@ import { loadLand, loadRegionShapes, type RegionFeature } from "@/lib/geo";
 import type { Feature, MultiPolygon } from "geojson";
 import { loadTowns, townPos, type TownFocus } from "@/lib/towns";
 import type { HanjaConverter } from "@/lib/hanja";
-import { CHINA } from "@/lib/regions";
+import { CHINA, JAPAN } from "@/lib/regions";
 import { dominantCategory, teasInRegion } from "@/lib/tea-utils";
 import type { Tea } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -46,13 +46,13 @@ interface Props {
   onSelfTeasClick?: (adcode: string) => void;
 }
 
-/** 지도에 맞출 범위에서 뺄 구역 (남해 제도까지 맞추면 본토가 너무 작아집니다) */
-const FIT_EXCLUDE = new Set(["460300", "100000_JD"]);
+/** 지도에 맞출 범위에서 뺄 구역 (남해 제도, 대만의 连江·金门 까지 맞추면 본섬이 너무 작아집니다) */
+const FIT_EXCLUDE = new Set(["460300", "100000_JD", "710100", "710200"]);
 
-/** 전국 지도에 맞출 모양: 실제 육지 (북위 17.5° 아래로만 있는 남해 섬들은 뺌) */
+/** 전국 지도에 맞출 모양: 실제 육지 (북위 17.5° 아래로만 있는 남해 섬들과, 오른쪽에 걸쳐 보이는 일본은 뺌) */
 function mainland(features: RegionFeature[]): GeoPermissibleObjects {
   const polys = features
-    .filter((f) => !f.properties.adcode.includes("_"))
+    .filter((f) => !f.properties.adcode.includes("_") && f.properties.adcode !== JAPAN)
     .flatMap((f) => (f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates))
     .filter((coordinates) => geoBounds({ type: "Polygon", coordinates })[1][1] >= 17.5);
   return { type: "MultiPolygon", coordinates: polys };
@@ -256,7 +256,10 @@ export function ChinaMap({
     list: [],
   });
   useEffect(() => {
-    const leaves = features.filter((f) => f.properties.childrenNum === 0 && /^\d{6}$/.test(f.properties.adcode));
+    // 향·진 목록은 중국 본토만 있음 (대만 71····, 일본은 없음)
+    const leaves = features.filter(
+      (f) => f.properties.childrenNum === 0 && /^\d{6}$/.test(f.properties.adcode) && !/^(71|99)/.test(f.properties.adcode),
+    );
     if (!projection || !leaves.length || leaves.length > 40) return;
     let alive = true;
     Promise.all(leaves.map((f) => loadTowns(f.properties.adcode).then((ts) => ts.map((t) => ({ t, county: f.properties.adcode })))))

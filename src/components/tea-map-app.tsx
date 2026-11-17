@@ -292,7 +292,8 @@ export function TeaMapApp() {
     else goTo(parentOf(viewCode) ?? CHINA);
   };
 
-  const regionName = (code: string) => (code === CHINA ? "中国" : (regions?.[code]?.n ?? ""));
+  /** 맨 위 단계는 중국·대만·일본을 함께 보여 주는 전체 지도 */
+  const regionName = (code: string) => (code === CHINA ? "全部" : (regions?.[code]?.n ?? ""));
   const curName = regionName(regionCode);
   const mapCount = useMemo(() => {
     const r = relatedMaps(regionMaps, regions, regionCode);
@@ -511,7 +512,7 @@ export function TeaMapApp() {
                     className={cn("rounded px-1 hover:bg-muted", code === regionCode && "font-semibold text-primary")}
                   >
                     {/* 한글 독음을 먼저, 한자는 작게 */}
-                    {code === CHINA ? "중국" : (conv?.toHangul(regionName(code)) ?? "")}
+                    {code === CHINA ? "전체" : (conv?.toHangul(regionName(code)) ?? "")}
                     <span className="ml-1 font-zh text-xs font-normal text-muted-foreground">{regionName(code)}</span>
                   </button>
                 </li>
@@ -568,7 +569,7 @@ export function TeaMapApp() {
                 <div className="flex items-baseline gap-2">
                   <h2 className="font-zh text-[1.75rem] leading-tight font-semibold tracking-tight">{curName}</h2>
                   <span className="text-sm font-medium text-muted-foreground">
-                    {regionCode === CHINA ? "중국 전역" : conv?.toHangul(curName)}
+                    {regionCode === CHINA ? "중국 · 대만 · 일본" : conv?.toHangul(curName)}
                   </span>
                 </div>
                 {(admin || mapCount > 0) && <MapsButton className="mt-2" count={mapCount} onClick={() => setMapsOpen(true)} />}
