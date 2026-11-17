@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { CupSoda, Layers, MapPin } from "lucide-react";
 import { Stars } from "@/components/tasting/star-rating";
-import { originNameKo } from "@/lib/towns";
+import { groupOrigins, originGroupNameKo } from "@/lib/towns";
 import type { Tea } from "@/lib/types";
 import { CategoryBadge, TeaThumb } from "./tea-visual";
 
@@ -64,7 +64,7 @@ export function TeaCard({
           {tea.origins.length > 0 && (
             <p className="flex items-center gap-1 truncate text-xs text-muted-foreground">
               <MapPin className="size-3 shrink-0" />
-              {tea.origins.map(originNameKo).join(" · ")}
+              {groupOrigins(tea.origins).map(originGroupNameKo).join(" · ")}
             </p>
           )}
         </div>

@@ -86,3 +86,24 @@ export const UNNAMED_SPOT = "이름 없는 위치";
 export function originNameKo(o: TeaOrigin) {
   return o.detail ? `${o.name_ko} › ${o.detail.name_ko || o.detail.name_zh || UNNAMED_SPOT}` : o.name_ko;
 }
+
+/** 같은 구역(현·구 등) 안의 여러 세부 산지를 한 묶음으로. 처음 나온 순서를 지킵니다 */
+export function groupOrigins(origins: TeaOrigin[]): TeaOrigin[][] {
+  const groups = new Map<string, TeaOrigin[]>();
+  for (const o of origins) {
+    const g = groups.get(o.adcode);
+    if (g) g.push(o);
+    else groups.set(o.adcode, [o]);
+  }
+  return [...groups.values()];
+}
+
+/** 세부 산지 이름 (한글, 없으면 한자) */
+export const detailNameKo = (o: TeaOrigin) => (o.detail ? o.detail.name_ko || o.detail.name_zh || UNNAMED_SPOT : "");
+
+/** 「녹곡향 › 동정 · 영륭 (2곳)」 처럼 같은 구역의 산지를 묶은 이름 */
+export function originGroupNameKo(group: TeaOrigin[]) {
+  if (group.length === 1) return originNameKo(group[0]);
+  // 구역 전체로도 등록돼 있으면 「전역」 으로
+  return `${group[0].name_ko} › ${group.map((o) => (o.detail ? detailNameKo(o) : "전역")).join(" · ")} (${group.length}곳)`;
+}

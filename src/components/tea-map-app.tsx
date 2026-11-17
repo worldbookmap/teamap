@@ -61,6 +61,8 @@ export function TeaMapApp() {
   const [cats, setCats] = useState<Set<TeaCategory>>(new Set());
   const [query, setQuery] = useState("");
   const [hoverTeaId, setHoverTeaId] = useState<string | null>(null);
+  /** 차 정보에서 산지를 눌러 지도로 왔을 때 그 차 (여러 산지를 잇는 선을 진하게) */
+  const [shownTeaId, setShownTeaId] = useState<string | null>(null);
 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [form, setForm] = useState<{
@@ -280,6 +282,7 @@ export function TeaMapApp() {
 
   const onRegionClick = (code: string, hasChildren: boolean) => {
     setFocusTown(null);
+    setShownTeaId(null);
     if (hasChildren) goTo(code);
     else setFocusCode((f) => (f === code ? null : code));
   };
@@ -288,6 +291,7 @@ export function TeaMapApp() {
   const parentOf = (code: string) => (code === CHINA ? null : (regions?.[code]?.p ?? CHINA));
   const back = () => {
     setFocusTown(null);
+    setShownTeaId(null);
     if (focusCode) setFocusCode(null);
     else goTo(parentOf(viewCode) ?? CHINA);
   };
@@ -455,7 +459,7 @@ export function TeaMapApp() {
             focusCode={focusCode}
             teas={filtered}
             conv={conv}
-            highlightTeaId={hoverTeaId}
+            highlightTeaId={hoverTeaId ?? shownTeaId}
             onRegionClick={onRegionClick}
             resetKey={mapResetKey}
             focusTown={focusTown}
@@ -796,6 +800,7 @@ export function TeaMapApp() {
           },
         }}
         onShowOrigin={(o) => {
+          setShownTeaId(detailId);
           setCountList(null);
           setDetailId(null);
           setGatheringId(null);

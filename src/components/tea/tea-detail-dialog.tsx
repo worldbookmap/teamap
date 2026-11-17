@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CATEGORY_META } from "@/lib/categories";
 import type { TheteaIndex } from "@/lib/thetea";
 import type { RegionIndex } from "@/lib/regions";
-import { originKey } from "@/lib/towns";
+import { groupOrigins, originKey, UNNAMED_SPOT } from "@/lib/towns";
 import type { Gathering, Tasting, Tea, TeaOrigin } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { TeaFigures } from "./tea-figures";
@@ -320,32 +320,75 @@ function TeaDetail({
               <div className="space-y-1.5">
                 <h3 className="text-xs font-medium tracking-wider text-muted-foreground">산지 · 産地</h3>
                 <ul className="flex flex-wrap gap-1.5">
-                  {tea.origins.map((o) => (
-                    <li key={originKey(o)}>
-                      <button
-                        onClick={() => onShowOrigin(o)}
-                        className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm transition hover:border-primary hover:bg-secondary"
-                      >
-                        <MapPin className="size-3.5 text-seal" />
-                        <span className="text-muted-foreground">
-                          {o.path
-                            .slice(0, -1)
-                            .map((c) => regions?.[c]?.n)
-                            .filter(Boolean)
-                            .join(" ")}
-                        </span>
-                        <span className="font-zh font-medium">{o.name_zh}</span>
-                        <span>{o.name_ko}</span>
-                        {o.detail && (
-                          <>
-                            <span className="text-muted-foreground">›</span>
-                            <span className="font-zh font-medium">{o.detail.name_zh}</span>
-                            <span>{o.detail.name_ko || (!o.detail.name_zh && "📍")}</span>
-                          </>
-                        )}
-                      </button>
-                    </li>
-                  ))}
+                  {groupOrigins(tea.origins).map((group) => {
+                    const o = group[0];
+                    const parents = o.path
+                      .slice(0, -1)
+                      .map((c) => regions?.[c]?.n)
+                      .filter(Boolean)
+                      .join(" ");
+                    if (group.length === 1) {
+                      return (
+                        <li key={originKey(o)}>
+                          <button
+                            onClick={() => onShowOrigin(o)}
+                            className="flex items-center gap-1 rounded-full border px-2.5 py-1 text-sm transition hover:border-primary hover:bg-secondary"
+                          >
+                            <MapPin className="size-3.5 text-seal" />
+                            <span className="text-muted-foreground">{parents}</span>
+                            <span className="font-zh font-medium">{o.name_zh}</span>
+                            <span>{o.name_ko}</span>
+                            {o.detail && (
+                              <>
+                                <span className="text-muted-foreground">›</span>
+                                <span className="font-zh font-medium">{o.detail.name_zh}</span>
+                                <span>{o.detail.name_ko || (!o.detail.name_zh && "📍")}</span>
+                              </>
+                            )}
+                          </button>
+                        </li>
+                      );
+                    }
+                    // 같은 구역의 여러 산지에서 나는 차: 한 묶음으로, 산지마다 눌러서 지도에서 보기
+                    return (
+                      <li key={o.adcode} className="w-full">
+                        <div className="rounded-xl border border-seal/30 bg-seal/[0.04] px-3 py-2 text-sm">
+                          <button
+                            onClick={() => onShowOrigin({ ...o, detail: undefined })}
+                            className="flex flex-wrap items-center gap-1 text-left hover:text-primary"
+                          >
+                            <MapPin className="size-3.5 text-seal" />
+                            <span className="text-muted-foreground">{parents}</span>
+                            <span className="font-zh font-medium">{o.name_zh}</span>
+                            <span>{o.name_ko}</span>
+                            <span className="ml-1 rounded-full bg-seal/10 px-1.5 text-[11px] font-medium text-seal">
+                              같은 차 · {group.length}곳에서
+                            </span>
+                          </button>
+                          <ul className="mt-1.5 flex flex-wrap gap-1 pl-4">
+                            {group.map((g) => (
+                              <li key={originKey(g)}>
+                                <button
+                                  onClick={() => onShowOrigin(g)}
+                                  className="flex items-center gap-1 rounded-full border bg-card px-2 py-0.5 text-[13px] transition hover:border-primary hover:bg-secondary"
+                                >
+                                  {g.detail ? (
+                                    <>
+                                      {g.detail.lng != null && <MapPin className="size-3 text-seal" />}
+                                      <span className="font-zh font-medium">{g.detail.name_zh}</span>
+                                      <span>{g.detail.name_ko || (!g.detail.name_zh && UNNAMED_SPOT)}</span>
+                                    </>
+                                  ) : (
+                                    <span>전역</span>
+                                  )}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

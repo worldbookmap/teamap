@@ -113,7 +113,7 @@ export function OriginPicker({
                     <button
                       type="button"
                       aria-label={o.detail ? "같은 지역에 세부 산지 하나 더" : "세부 산지 추가"}
-                      title={o.detail ? "같은 지역에 세부 산지 하나 더" : "세부 산지(향·진, 차산·마을) 추가"}
+                      title={o.detail ? "같은 차가 이 지역의 다른 곳에서도 나면 산지를 하나 더 (지도에서 서로 이어 보여요)" : "세부 산지(향·진, 차산·마을) 추가"}
                       className="flex items-center gap-0.5 rounded-full px-1 py-0.5 text-primary hover:bg-background"
                       onClick={() =>
                         o.detail
@@ -122,7 +122,7 @@ export function OriginPicker({
                       }
                     >
                       <MapPinPlus className="size-3" />
-                      {!o.detail && <span className="text-[11px]">세부</span>}
+                      <span className="text-[11px]">{o.detail ? "한 곳 더" : "세부"}</span>
                     </button>
                   )}
                   <button

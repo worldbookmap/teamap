@@ -13,7 +13,7 @@ import { loadLand, loadRegionShapes, type RegionFeature } from "@/lib/geo";
 import type { Feature, MultiPolygon } from "geojson";
 import { loadTowns, townPos, type TownFocus } from "@/lib/towns";
 import type { HanjaConverter } from "@/lib/hanja";
-import { CHINA, JAPAN } from "@/lib/regions";
+import { CHINA } from "@/lib/regions";
 import { dominantCategory, teasInRegion } from "@/lib/tea-utils";
 import type { Tea } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -49,10 +49,10 @@ interface Props {
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도, 대만의 连江·金门 까지 맞추면 본섬이 너무 작아집니다) */
 const FIT_EXCLUDE = new Set(["460300", "100000_JD", "710100", "710200"]);
 
-/** 전국 지도에 맞출 모양: 실제 육지 (북위 17.5° 아래로만 있는 남해 섬들과, 오른쪽에 걸쳐 보이는 일본은 뺌) */
+/** 전국 지도에 맞출 모양: 실제 육지와 일본 (북위 17.5° 아래로만 있는 남해 섬들은 뺌) */
 function mainland(features: RegionFeature[]): GeoPermissibleObjects {
   const polys = features
-    .filter((f) => !f.properties.adcode.includes("_") && f.properties.adcode !== JAPAN)
+    .filter((f) => !f.properties.adcode.includes("_"))
     .flatMap((f) => (f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates))
     .filter((coordinates) => geoBounds({ type: "Polygon", coordinates })[1][1] >= 17.5);
   return { type: "MultiPolygon", coordinates: polys };
@@ -233,6 +233,9 @@ export function ChinaMap({
         m.set(key, cur);
       }
     }
+    // 같은 차가 이 지도 안 몇 곳에 찍혀 있는지 (2곳 이상이면 이름 옆에 「N곳」)
+    const sites = new Map<string, number>();
+    for (const p of m.values()) for (const t of p.teas) sites.set(t.id, (sites.get(t.id) ?? 0) + 1);
     // 이름은 시(지구)를 눌러 한 단계 더 들어갔을 때부터 (성 지도에서는 핀만).
     // 직할시처럼 성에서 바로 구가 나오는 곳은 처음부터
     const named = !/0000$/.test(viewCode) || features[0]?.properties.level === "district";
@@ -240,15 +243,56 @@ export function ChinaMap({
       if (!named) return { ...p, lines: [], box: { left: -8, right: 8, top: -22, bottom: 0 } };
       // 장소 이름이 있으면 맨 위 줄에
       const lines = [
-        ...(p.zh || p.ko ? [{ id: "", label: p.zh || p.ko, ko: p.zh ? p.ko : "", place: true }] : []),
-        ...p.teas.slice(0, 3).map((t) => ({ id: t.id, label: t.name_zh || t.name_ko, ko: t.name_zh ? t.name_ko : "", place: false })),
-        ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "", place: false }] : []),
+        ...(p.zh || p.ko ? [{ id: "", label: p.zh || p.ko, ko: p.zh ? p.ko : "", place: true, sites: 0 }] : []),
+        ...p.teas.slice(0, 3).map((t) => ({
+          id: t.id,
+          label: t.name_zh || t.name_ko,
+          ko: t.name_zh ? t.name_ko : "",
+          place: false,
+          sites: sites.get(t.id) ?? 1,
+        })),
+        ...(p.teas.length > 3 ? [{ id: "", label: `외 ${p.teas.length - 3}종`, ko: "", place: false, sites: 0 }] : []),
       ];
       // 핀과 차 이름이 차지하는 대략의 영역 (핀 끝 기준, 화면 px) — 지명과 겹치는지 볼 때 씀
-      const w = Math.max(...lines.map((l) => l.label.length * 10.5 + (l.ko ? 4 + l.ko.length * 9.5 : 0)));
+      const w = Math.max(...lines.map((l) => l.label.length * 10.5 + (l.ko ? 4 + l.ko.length * 9.5 : 0) + (l.sites > 1 ? 28 : 0)));
       return { ...p, lines, box: { left: -8, right: 9 + w, top: -22, bottom: -9 + (lines.length - 1) * 14 + 4 } };
     });
   }, [teas, projection, viewCode, features]);
+
+  /**
+   * 같은 차가 이 지도 안 여러 세부 산지에서 날 때 그 산지들을 잇는 선.
+   * 가까운 곳끼리 이어지도록 최소 신장 트리로 (산지가 서너 곳이어도 선이 엉키지 않게)
+   */
+  const links = useMemo(() => {
+    const byTea = new Map<string, { tea: Tea; pts: { x: number; y: number }[] }>();
+    for (const p of pins) {
+      for (const t of p.teas) {
+        const cur = byTea.get(t.id) ?? { tea: t, pts: [] };
+        cur.pts.push({ x: p.x, y: p.y });
+        byTea.set(t.id, cur);
+      }
+    }
+    return [...byTea.values()]
+      .filter((v) => v.pts.length > 1)
+      .map(({ tea, pts }) => {
+        const inTree = [0];
+        const segs: [number, number, number, number][] = [];
+        while (inTree.length < pts.length) {
+          let best: [number, number, number] | null = null;
+          for (const i of inTree) {
+            for (let j = 0; j < pts.length; j++) {
+              if (inTree.includes(j)) continue;
+              const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y);
+              if (!best || d < best[2]) best = [i, j, d];
+            }
+          }
+          const [i, j] = best!;
+          inTree.push(j);
+          segs.push([pts[i].x, pts[i].y, pts[j].x, pts[j].y]);
+        }
+        return { tea, d: segs.map(([x1, y1, x2, y2]) => `M${x1},${y1}L${x2},${y2}`).join("") };
+      });
+  }, [pins]);
 
   // 현·구가 보이는 지도에서는 향·진 위치를 점으로 (OpenStreetMap 기준, 일부만 위치가 있음)
   const [towns, setTowns] = useState<{ view: string; list: (TownFocus & { x: number; y: number })[] }>({
@@ -658,6 +702,29 @@ export function ChinaMap({
                 </motion.g>
               )}
 
+              {/* 같은 차의 여러 산지를 잇는 점선 (목록에서 그 차에 마우스를 올리면 진하게) */}
+              <g pointerEvents="none" className={fade(!!focusShape)}>
+                {links.map(({ tea, d }) => {
+                  const on = highlightTeaId === tea.id;
+                  return (
+                    <path
+                      key={`link-${tea.id}`}
+                      d={d}
+                      fill="none"
+                      vectorEffect="non-scaling-stroke"
+                      className="transition-[stroke-width,opacity] duration-200"
+                      style={{
+                        stroke: CATEGORY_META[tea.category].color,
+                        strokeWidth: on ? 2.6 : 1.4,
+                        strokeDasharray: on ? "none" : "5 4",
+                        strokeLinecap: "round",
+                        opacity: on ? 0.95 : highlightTeaId ? 0.15 : 0.5,
+                      }}
+                    />
+                  );
+                })}
+              </g>
+
               {/* 향·진 위치 */}
               {/* 선택한 현·구의 향·진이 위에 오도록 뒤에 그림 */}
               {[...townDots].sort((a, b) => Number(a.county === focusCode) - Number(b.county === focusCode)).map((t) => {
@@ -730,7 +797,7 @@ export function ChinaMap({
                   )}
                   {/* 그 자리의 차 이름 (누르면 차 정보) */}
                   {p.lines.map(
-                      ({ id, label, ko, place }, i) => (
+                      ({ id, label, ko, place, sites }, i) => (
                         <text
                           key={id || (place ? "place" : "more")}
                           x={9}
@@ -745,6 +812,9 @@ export function ChinaMap({
                         >
                           {label}
                           {ko && <tspan style={{ fontSize: 9.5, fontWeight: 400, opacity: 0.8 }}> {ko}</tspan>}
+                          {sites > 1 && (
+                            <tspan style={{ fill: "var(--seal)", fontSize: 9, fontWeight: 700 }}> ·{sites}곳</tspan>
+                          )}
                         </text>
                       ),
                     )}
