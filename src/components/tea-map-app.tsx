@@ -83,7 +83,7 @@ export function TeaMapApp() {
   /** 지도의 차 개수 표식을 눌러 연 차 목록 (self: 그 구역 자체로 등록된 차만) */
   const [countList, setCountList] = useState<{ code: string; self?: boolean } | null>(null);
   /** 세미나용 오늘의 차 (고른 순서, 이 브라우저에 저장) */
-  const [todayIds, setTodayIds] = useTodayTeas();
+  const { ids: todayIds, setIds: setTodayIds, shown: todayShown, setShown: setTodayShown } = useTodayTeas();
   const [todayPicker, setTodayPicker] = useState(false);
 
   // 마신 기록
@@ -215,12 +215,13 @@ export function TeaMapApp() {
   /** 목록 카드에 붙일 오늘의 차 번호 (제품을 골랐으면 상위 차 카드에) */
   const todayNumber = useMemo(() => {
     const m = new Map<string, number>();
+    if (!todayShown) return m;
     todayTeas.forEach((t, i) => {
       const top = t.parent_id ?? t.id;
       if (!m.has(top)) m.set(top, i + 1);
     });
     return m;
-  }, [todayTeas]);
+  }, [todayTeas, todayShown]);
   /** 검색은 제품 이름·제조사와 백과사전 이름(한국어·병음)으로도 */
   const matchesFamily = useCallback(
     (t: Tea) => {
@@ -502,7 +503,20 @@ export function TeaMapApp() {
             onTogglePresent={togglePresent}
             onCountClick={presenting ? (code) => setCountList({ code }) : undefined}
             onSelfTeasClick={(code) => setCountList({ code, self: true })}
-            todayTeas={todayTeas}
+            todayTeas={todayShown ? todayTeas : undefined}
+            extraControls={
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={() => (todayTeas.length ? setTodayShown(!todayShown) : setTodayPicker(true))}
+                aria-label={!todayTeas.length ? "오늘의 차 고르기" : todayShown ? "오늘의 차 숨기기" : "오늘의 차 보기"}
+                aria-pressed={todayTeas.length ? todayShown : undefined}
+                title={!todayTeas.length ? "오늘의 차 고르기" : todayShown ? "오늘의 차 숨기기" : "오늘의 차 보기"}
+                className={cn(todayTeas.length > 0 && todayShown && "bg-today/15 hover:bg-today/25")}
+              >
+                <Star className={cn("text-today", todayTeas.length > 0 && todayShown && "fill-today")} />
+              </Button>
+            }
           />
 
           {/* 오늘의 차 (왼쪽 아래 다류 안내, 오른쪽 아래 확대 버튼을 비켜서) */}
@@ -513,7 +527,7 @@ export function TeaMapApp() {
             )}
           >
             <TodayTeaBar
-              teas={todayTeas}
+              teas={todayShown ? todayTeas : []}
               large={presenting}
               onOpen={(id) => {
                 setDetailTab("info");
@@ -521,6 +535,7 @@ export function TeaMapApp() {
               }}
               onHover={setHoverTeaId}
               onEdit={() => setTodayPicker(true)}
+              onHide={() => setTodayShown(false)}
             />
           </div>
 

@@ -46,6 +46,8 @@ interface Props {
   onSelfTeasClick?: (adcode: string) => void;
   /** 세미나용 오늘의 차 (고른 순서). 그 산지 구역을 강조하고 번호 표식을 붙임 */
   todayTeas?: Tea[];
+  /** 확대·축소 버튼 묶음 위에 덧붙일 버튼 (전체 화면에서도 보임) */
+  extraControls?: React.ReactNode;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도, 대만의 连江·金门 까지 맞추면 본섬이 너무 작아집니다) */
@@ -105,6 +107,7 @@ export function ChinaMap({
   onCountClick,
   onSelfTeasClick,
   todayTeas = NO_TEAS,
+  extraControls,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -1082,6 +1085,7 @@ export function ChinaMap({
       )}
 
       <div className="absolute bottom-3 right-3 flex flex-col gap-1 rounded-lg border bg-card/90 p-1 shadow-sm backdrop-blur">
+        {extraControls}
         <Button size="icon-sm" variant="ghost" onClick={() => zoomBy(1.6)} aria-label="확대">
           <Plus />
         </Button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Pencil, Search, Star, X } from "lucide-react";
+import { Check, EyeOff, Pencil, Search, Star, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,15 +14,18 @@ import { cn } from "@/lib/utils";
 import { TeaThumb } from "./tea-visual";
 
 const KEY = "teaggle:today-teas";
+const SHOW_KEY = "teaggle:today-teas-shown";
 
-/** 세미나용 오늘의 차 (고른 순서대로). 이 브라우저에만 저장 */
+/** 세미나용 오늘의 차 (고른 순서대로) 와 지도에 보일지 여부. 이 브라우저에만 저장 */
 export function useTodayTeas() {
   const [ids, setIds] = useState<string[]>([]);
+  const [shown, setShownState] = useState(true);
   useEffect(() => {
     try {
       const v = JSON.parse(localStorage.getItem(KEY) ?? "[]");
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 첫 렌더 뒤 저장해 둔 값을 한 번 읽음 (SSR 과 맞추기 위해)
       if (Array.isArray(v)) setIds(v.filter((x) => typeof x === "string"));
+      setShownState(localStorage.getItem(SHOW_KEY) !== "0");
     } catch {}
   }, []);
   const update = useCallback((next: string[]) => {
@@ -31,7 +34,13 @@ export function useTodayTeas() {
       localStorage.setItem(KEY, JSON.stringify(next));
     } catch {}
   }, []);
-  return [ids, update] as const;
+  const setShown = useCallback((v: boolean) => {
+    setShownState(v);
+    try {
+      localStorage.setItem(SHOW_KEY, v ? "1" : "0");
+    } catch {}
+  }, []);
+  return { ids, setIds: update, shown, setShown };
 }
 
 /** 오늘의 차 고르기: 고른 순서가 곧 번호 (시음 순서) */
@@ -183,12 +192,14 @@ export function TodayTeaBar({
   onOpen,
   onHover,
   onEdit,
+  onHide,
 }: {
   teas: Tea[];
   large?: boolean;
   onOpen: (id: string) => void;
   onHover: (id: string | null) => void;
   onEdit: () => void;
+  onHide: () => void;
 }) {
   return (
     <AnimatePresence>
@@ -230,6 +241,9 @@ export function TodayTeaBar({
           ))}
           <Button size={large ? "icon" : "icon-xs"} variant="ghost" onClick={onEdit} aria-label="오늘의 차 고치기">
             <Pencil />
+          </Button>
+          <Button size={large ? "icon" : "icon-xs"} variant="ghost" onClick={onHide} aria-label="오늘의 차 숨기기" title="지도에서 숨기기">
+            <EyeOff />
           </Button>
         </motion.div>
       )}
