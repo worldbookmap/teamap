@@ -1,7 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CupSoda, Layers, MapPin } from "lucide-react";
+import { CupSoda, Layers, MapPin, Star } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Stars } from "@/components/tasting/star-rating";
 import { groupOrigins, originGroupNameKo } from "@/lib/towns";
 import type { Tea } from "@/lib/types";
@@ -13,6 +14,7 @@ export function TeaCard({
   onHover,
   drunk,
   productCount = 0,
+  today,
   className,
 }: {
   tea: Tea;
@@ -20,6 +22,8 @@ export function TeaCard({
   drunk?: { count: number; avg: number | null };
   /** 등록된 제품 수 */
   productCount?: number;
+  /** 오늘의 차 번호 (세미나용) */
+  today?: number;
   onOpen: (tea: Tea) => void;
   onHover: (id: string | null) => void;
   className?: string;
@@ -39,7 +43,10 @@ export function TeaCard({
         onPointerLeave={() => onHover(null)}
         onFocus={() => onHover(tea.id)}
         onBlur={() => onHover(null)}
-        className="group flex w-full gap-3.5 rounded-2xl border border-border/60 bg-card p-2.5 text-left transition duration-200 hover:border-primary/30 hover:shadow-[0_8px_24px_-12px_color-mix(in_oklch,var(--primary)_35%,transparent)]"
+        className={cn(
+          "group flex w-full gap-3.5 rounded-2xl border border-border/60 bg-card p-2.5 text-left transition duration-200 hover:border-primary/30 hover:shadow-[0_8px_24px_-12px_color-mix(in_oklch,var(--primary)_35%,transparent)]",
+          today && "border-today/70 ring-1 ring-today/40",
+        )}
       >
         <TeaThumb tea={tea} className="size-16 shrink-0 rounded-xl text-[11px] transition duration-300 group-hover:scale-[1.03]" />
         <div className="min-w-0 flex-1 space-y-1">
@@ -48,6 +55,11 @@ export function TeaCard({
             <span className="truncate text-sm text-muted-foreground">{tea.name_ko}</span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
+            {today && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-today/15 px-2 py-0.5 text-[11px] font-semibold text-today">
+                <Star className="size-3 fill-today" /> 오늘의 차 {today}
+              </span>
+            )}
             <CategoryBadge category={tea.category} />
             {productCount > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">

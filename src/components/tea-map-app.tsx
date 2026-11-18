@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, Loader2, LogIn, LogOut, Map as MapIcon, Moon, Plus, Search, Sparkles, Sun, Users } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, Loader2, LogIn, LogOut, Map as MapIcon, Moon, Plus, Search, Sparkles, Star, Sun, Users } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -24,6 +24,7 @@ import { tastingSummary } from "@/components/tasting/tasting-list";
 import { TastingTimelineSheet } from "@/components/tasting/tasting-timeline-sheet";
 import { TeaDetailDialog, type DetailTab } from "@/components/tea/tea-detail-dialog";
 import { TeaFormDialog } from "@/components/tea/tea-form-dialog";
+import { TodayTeaBar, TodayTeaPicker, useTodayTeas } from "@/components/tea/today-teas";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -81,6 +82,9 @@ export function TeaMapApp() {
   const [presenting, setPresenting] = useState(false);
   /** 지도의 차 개수 표식을 눌러 연 차 목록 (self: 그 구역 자체로 등록된 차만) */
   const [countList, setCountList] = useState<{ code: string; self?: boolean } | null>(null);
+  /** 세미나용 오늘의 차 (고른 순서, 이 브라우저에 저장) */
+  const [todayIds, setTodayIds] = useTodayTeas();
+  const [todayPicker, setTodayPicker] = useState(false);
 
   // 마신 기록
   const [tastings, setTastings] = useState<Tasting[]>([]);
@@ -195,6 +199,28 @@ export function TeaMapApp() {
         }),
     [teas, productsOf],
   );
+  /** 오늘의 차: 대표 차는 제품 산지까지 합친 것, 산지가 없는 제품은 상위 차의 산지로 */
+  const todayTeas = useMemo(
+    () =>
+      todayIds.flatMap((id) => {
+        const t = teas.find((x) => x.id === id);
+        if (!t) return [];
+        if (!t.parent_id) return [topTeas.find((x) => x.id === id) ?? t];
+        if (t.origins.length) return [t];
+        const parent = teas.find((x) => x.id === t.parent_id);
+        return [{ ...t, origins: parent?.origins ?? [] }];
+      }),
+    [todayIds, teas, topTeas],
+  );
+  /** 목록 카드에 붙일 오늘의 차 번호 (제품을 골랐으면 상위 차 카드에) */
+  const todayNumber = useMemo(() => {
+    const m = new Map<string, number>();
+    todayTeas.forEach((t, i) => {
+      const top = t.parent_id ?? t.id;
+      if (!m.has(top)) m.set(top, i + 1);
+    });
+    return m;
+  }, [todayTeas]);
   /** 검색은 제품 이름·제조사와 백과사전 이름(한국어·병음)으로도 */
   const matchesFamily = useCallback(
     (t: Tea) => {
@@ -419,6 +445,8 @@ export function TeaMapApp() {
           onTimeline={() => setTimelineOpen(true)}
           onHome={goHome}
           onUpdates={() => setLandingManual(CHANGELOG)}
+          todayCount={todayTeas.length}
+          onToday={() => setTodayPicker(true)}
           view={view}
           onView={changeView}
           gatheringCount={gatherings.length}
@@ -474,7 +502,27 @@ export function TeaMapApp() {
             onTogglePresent={togglePresent}
             onCountClick={presenting ? (code) => setCountList({ code }) : undefined}
             onSelfTeasClick={(code) => setCountList({ code, self: true })}
+            todayTeas={todayTeas}
           />
+
+          {/* 오늘의 차 (왼쪽 아래 다류 안내, 오른쪽 아래 확대 버튼을 비켜서) */}
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center pr-14 pl-3",
+              presenting ? "sm:pl-[18rem]" : "sm:pl-44",
+            )}
+          >
+            <TodayTeaBar
+              teas={todayTeas}
+              large={presenting}
+              onOpen={(id) => {
+                setDetailTab("info");
+                setDetailId(id);
+              }}
+              onHover={setHoverTeaId}
+              onEdit={() => setTodayPicker(true)}
+            />
+          </div>
 
           <div className="absolute top-3 right-3 z-20">
             <RegionSearch
@@ -645,6 +693,7 @@ export function TeaMapApp() {
                       tea={t}
                       drunk={summaries.get(t.id)}
                       productCount={productsOf.get(t.id)?.length ?? 0}
+                      today={todayNumber.get(t.id)}
                       onOpen={(x) => {
                         setDetailTab("info");
                         setDetailId(x.id);
@@ -712,6 +761,7 @@ export function TeaMapApp() {
                 tea={t}
                 drunk={summaries.get(t.id)}
                 productCount={productsOf.get(t.id)?.length ?? 0}
+                today={todayNumber.get(t.id)}
                 onOpen={(x) => {
                   setDetailTab("info");
                   setDetailId(x.id);
@@ -905,6 +955,14 @@ export function TeaMapApp() {
           }
         }}
       />
+      <TodayTeaPicker
+        open={todayPicker}
+        onOpenChange={setTodayPicker}
+        teas={teas}
+        selected={todayIds.filter((id) => teas.some((t) => t.id === id))}
+        onChange={setTodayIds}
+        conv={conv}
+      />
       <LoginDialog open={loginOpen} onOpenChange={setLoginOpen} onLoggedIn={refreshMe} />
     </div>
   );
@@ -920,6 +978,8 @@ function Header({
   onTimeline,
   onHome,
   onUpdates,
+  todayCount,
+  onToday,
   view,
   onView,
   gatheringCount,
@@ -933,6 +993,8 @@ function Header({
   onTimeline: () => void;
   onHome: () => void;
   onUpdates: () => void;
+  todayCount: number;
+  onToday: () => void;
   view: View;
   onView: (v: View) => void;
   gatheringCount: number;
@@ -994,6 +1056,17 @@ function Header({
             </span>
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onToday}
+          className={cn(todayCount > 0 && "border-today/60 bg-today/10 hover:bg-today/15")}
+          aria-label="오늘의 차 고르기"
+        >
+          <Star className={cn("text-today", todayCount > 0 && "fill-today")} />
+          <span className="hidden sm:inline">오늘의 차</span>
+          {todayCount > 0 && <span className="font-semibold text-today">{todayCount}</span>}
+        </Button>
         <Button size="sm" variant="outline" onClick={onTimeline}>
           <CupSoda /> <span className="hidden sm:inline">마신 기록</span>
           {drunkCount > 0 && <span className="text-seal">{drunkCount}</span>}

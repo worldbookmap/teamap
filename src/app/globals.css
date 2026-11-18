@@ -13,6 +13,7 @@
   --font-heading: var(--font-noto-serif), ui-serif, serif;
   --font-display: var(--font-instrument), var(--font-noto-serif), ui-serif, serif;
   --color-seal: var(--seal);
+  --color-today: var(--today);
   --color-map-sea: var(--map-sea);
   --color-map-land: var(--map-land);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -97,6 +98,7 @@
   --map-stroke: oklch(0.84 0.012 120);
   --map-label: oklch(0.4 0.02 155);
   --seal: oklch(0.54 0.165 30); /* 낙관 인주 */
+  --today: oklch(0.66 0.16 62); /* 오늘의 차 (세미나 강조) */
   /* 차가 있는 구역의 다류별 바탕색 */
   --tint-green: #e3ebcf;
   --tint-white: #f1ebdc;
@@ -148,6 +150,7 @@
   --map-stroke: oklch(0.42 0.025 65);
   --map-label: oklch(0.82 0.02 80);
   --seal: oklch(0.63 0.16 30);
+  --today: oklch(0.8 0.15 80);
   --tint-green: color-mix(in oklch, #6f8f3a 40%, oklch(0.27 0.02 60));
   --tint-white: color-mix(in oklch, #b5a27a 40%, oklch(0.27 0.02 60));
   --tint-yellow: color-mix(in oklch, #c69a1e 40%, oklch(0.27 0.02 60));

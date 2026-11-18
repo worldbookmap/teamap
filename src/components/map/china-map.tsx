@@ -44,6 +44,8 @@ interface Props {
   onCountClick?: (adcode: string) => void;
   /** 하위 구역 없이 지금 보는 구역 자체로 등록된 차의 표식·배지를 눌렀을 때 */
   onSelfTeasClick?: (adcode: string) => void;
+  /** 세미나용 오늘의 차 (고른 순서). 그 산지 구역을 강조하고 번호 표식을 붙임 */
+  todayTeas?: Tea[];
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도, 대만의 连江·金门 까지 맞추면 본섬이 너무 작아집니다) */
@@ -59,6 +61,7 @@ function mainland(features: RegionFeature[]): GeoPermissibleObjects {
 }
 
 const NO_FEATURES: RegionFeature[] = [];
+const NO_TEAS: Tea[] = [];
 
 function useSize<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -101,6 +104,7 @@ export function ChinaMap({
   onTogglePresent,
   onCountClick,
   onSelfTeasClick,
+  todayTeas = NO_TEAS,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -303,11 +307,11 @@ export function ChinaMap({
    * 같은 차가 이 지도 안 여러 곳에서 날 때 (예: 东方美人 — 新竹县·桃园市·苗栗县) 그곳들의 위치.
    * 세부 산지 핀이 있으면 핀, 없으면 그 산지를 품은 구역의 차 표식 자리
    */
-  const teaSites = useMemo(() => {
-    const out = new Map<string, { tea: Tea; pts: { x: number; y: number }[] }>();
-    if (!projection) return out;
+  const siteFinder = useMemo(() => {
+    if (!projection) return null;
     const shapeAt = new Map(shapesData.filter((s) => !s.f.properties.adcode.includes("_")).map((s) => [s.f.properties.adcode, s]));
-    for (const t of teas) {
+    /** 차가 이 지도에서 나는 자리들 (키: p경도,위도 = 핀, r구역코드 = 구역 표식 자리) */
+    return (t: Tea) => {
       const seen = new Map<string, { x: number; y: number }>();
       for (const o of t.origins) {
         const d = o.detail;
@@ -321,10 +325,34 @@ export function ChinaMap({
         const s = shapeAt.get(o.path.find((c) => shapeAt.has(c)) ?? "");
         if (s) seen.set(`r${s.f.properties.adcode}`, { x: s.x, y: s.y });
       }
+      return seen;
+    };
+  }, [projection, viewCode, shapesData]);
+  const teaSites = useMemo(() => {
+    const out = new Map<string, { tea: Tea; pts: { x: number; y: number }[] }>();
+    if (!siteFinder) return out;
+    for (const t of teas) {
+      const seen = siteFinder(t);
       if (seen.size > 1) out.set(t.id, { tea: t, pts: [...seen.values()] });
     }
     return out;
-  }, [teas, projection, viewCode, shapesData]);
+  }, [teas, siteFinder]);
+
+  /** 오늘의 차가 나는 구역 (상위 구역 포함) */
+  const todayCodes = useMemo(() => new Set(todayTeas.flatMap((t) => t.origins.flatMap((o) => o.path))), [todayTeas]);
+  /** 오늘의 차 번호 표식: 같은 자리에 여러 차가 있으면 한 묶음으로 */
+  const todayTags = useMemo(() => {
+    if (!siteFinder) return [];
+    const m = new Map<string, { x: number; y: number; pin: boolean; items: { tea: Tea; n: number }[] }>();
+    todayTeas.forEach((tea, i) => {
+      for (const [key, pt] of siteFinder(tea)) {
+        const cur = m.get(key) ?? { ...pt, pin: key.startsWith("p"), items: [] };
+        cur.items.push({ tea, n: i + 1 });
+        m.set(key, cur);
+      }
+    });
+    return [...m.entries()].map(([key, v]) => ({ key, ...v }));
+  }, [todayTeas, siteFinder]);
 
   /** 그 위치들을 잇는 선: 가까운 곳끼리 이어지도록 최소 신장 트리로 (서너 곳이어도 선이 엉키지 않게) */
   const links = useMemo(
@@ -626,6 +654,25 @@ export function ChinaMap({
                 })}
               </g>
 
+              {/* 오늘의 차가 나는 구역: 금빛 테두리와 은은하게 숨쉬는 바탕 */}
+              {todayCodes.size > 0 && (
+                <g pointerEvents="none">
+                  {shapesData.map(({ f, d }) =>
+                    todayCodes.has(f.properties.adcode) ? (
+                      <motion.path
+                        key={`today-${f.properties.adcode}`}
+                        d={d}
+                        vectorEffect="non-scaling-stroke"
+                        style={{ fill: "var(--today)", stroke: "var(--today)", strokeWidth: 3, strokeLinejoin: "round" }}
+                        initial={{ fillOpacity: 0.12, strokeOpacity: 0.9 }}
+                        animate={{ fillOpacity: [0.12, 0.3, 0.12], strokeOpacity: 0.95 }}
+                        transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                    ) : null,
+                  )}
+                </g>
+              )}
+
               {/* 지명 (선택한 구역의 이름은 맨 위에 따로 그림) */}
               {shapesData.map((shape) => (shape === focusShape ? null : renderLabel(shape)))}
 
@@ -841,6 +888,52 @@ export function ChinaMap({
               ))}
 
               {focusShape && renderLabel(focusShape)}
+
+              {/* 오늘의 차 번호 표식 (핀이면 핀 머리 위, 구역이면 차 개수 표식 위) */}
+              {todayTags.map(({ key, x, y, pin, items }) => (
+                <g key={`tt-${key}`} transform={`translate(${x},${y})`}>
+                  <g className="map-cs" transform={`scale(${cs(k)})`}>
+                    <motion.g
+                      initial={{ scale: 0, y: 8, opacity: 0 }}
+                      animate={{ scale: 1, y: pin ? -30 : -24, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 20, delay: 0.3 }}
+                    >
+                      {items.map(({ tea, n }, i) => {
+                        const label = tea.name_zh || tea.name_ko;
+                        const w = 24 + label.length * 12;
+                        const top = -(items.length - i) * 22;
+                        return (
+                          <g
+                            key={tea.id}
+                            transform={`translate(${-w / 2},${top})`}
+                            className={onTeaClick ? "cursor-pointer" : undefined}
+                            pointerEvents={onTeaClick ? "auto" : "none"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onTeaClick?.(tea.id);
+                            }}
+                          >
+                            <title>{`오늘의 차 ${n}. ${[tea.name_zh, tea.name_ko].filter(Boolean).join(" ")}`}</title>
+                            <rect
+                              width={w}
+                              height={19}
+                              rx={9.5}
+                              style={{ fill: "var(--card)", stroke: "var(--today)", strokeWidth: 1.8, filter: "drop-shadow(0 2px 3px rgb(0 0 0 / 0.18))" }}
+                            />
+                            <circle cx={9.5} cy={9.5} r={7} fill={CATEGORY_META[tea.category].color} />
+                            <text x={9.5} y={9.5} dy="0.36em" textAnchor="middle" fill="white" style={{ fontSize: 9, fontWeight: 700 }}>
+                              {n}
+                            </text>
+                            <text x={20} y={9.5} dy="0.36em" className="font-zh" style={{ fill: "var(--foreground)", fontSize: 11.5, fontWeight: 700 }}>
+                              {label}
+                            </text>
+                          </g>
+                        );
+                      })}
+                    </motion.g>
+                  </g>
+                </g>
+              ))}
 
               {/* 고른 향·진 (다시 누르면 선택 해제) */}
               {focusTown && focusTownPt && (
