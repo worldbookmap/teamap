@@ -14,6 +14,7 @@ import type { Feature, MultiPolygon } from "geojson";
 import { loadTowns, townPos, type TownFocus } from "@/lib/towns";
 import type { HanjaConverter } from "@/lib/hanja";
 import { CHINA } from "@/lib/regions";
+import { LANDMARKS } from "@/data/landmarks";
 import { dominantCategory, teasInRegion } from "@/lib/tea-utils";
 import type { Tea } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -215,6 +216,20 @@ export function ChinaMap({
     const t = highlightTeaId ? teas.find((x) => x.id === highlightTeaId) : null;
     return new Set(t ? t.origins.flatMap((o) => o.path) : []);
   }, [highlightTeaId, teas]);
+
+  /** 이름난 차산 (지금 보는 지역 안에 있는 것만) */
+  const mountains = useMemo(() => {
+    if (!projection || viewCode === CHINA) return [];
+    return LANDMARKS.filter((m) => m.path.includes(viewCode)).flatMap((m) => {
+      const pt = projection([m.lng, m.lat]);
+      if (!pt) return [];
+      // 대만은 번체, 나머지는 간체 (다른 지명과 맞춤)
+      const name = m.path[0] === "710000" ? (m.trad ?? m.zh) : m.zh;
+      // 산과 이름이 차지하는 대략의 영역 (산 밑변 가운데 기준, 화면 px) — 지명이 비켜 가도록
+      const half = Math.max(16, (name.length * 11 + 4 + m.ko.length * 9.5) / 2);
+      return [{ ...m, name, half, x: pt[0], y: pt[1], box: { left: -half, right: Math.max(20, half), top: -38, bottom: 16 } }];
+    });
+  }, [projection, viewCode]);
 
   /** 현재 보고 있는 구역 자체(하위 구역 미지정)로 등록된 차 */
   const selfTeas = useMemo(
@@ -517,7 +532,7 @@ export function ChinaMap({
     const s = cs(k);
     const hw = Math.max(label.length * 11.5, labelKo.length * 9.5) / 2 + 2;
     let dy = has ? 24 : 0;
-    for (const p of pins) {
+    for (const p of [...pins, ...mountains]) {
       const top = y + (dy - 11) * s;
       const bottom = y + (dy + 16) * s;
       const pTop = p.y + p.box.top * s;
@@ -834,6 +849,66 @@ export function ChinaMap({
                   </g>
                 );
               })}
+
+              {/* 이름난 차산: 산 모양, 이름은 꼭대기 위에 (향·진 이름 위, 핀 아래에 그림) */}
+              {(() => {
+                // 가까운 산끼리 (예: 사자봉·오운산) 이름이 겹치면 뒤의 산 이름은 아래로
+                const sc = cs(k);
+                /** 이미 자리 잡은 이름 줄과 산 모양 (지도 좌표, [왼, 위, 오른, 아래]) */
+                const taken: [number, number, number, number][] = mountains.map((p) => [p.x - 17 * sc, p.y - 22 * sc, p.x + 21 * sc, p.y]);
+                /** 이름을 놓아 볼 자리: 꼭대기 위 → 밑변 아래 → 오른쪽 → 왼쪽 (x·y 는 글자 기준점, 화면 px) */
+                const SPOTS = [
+                  { x: 0, y: -26, anchor: "middle" },
+                  { x: 0, y: 12, anchor: "middle" },
+                  { x: 23, y: -6, anchor: "start" },
+                  { x: -19, y: -6, anchor: "end" },
+                ] as const;
+                /** 이름 줄 영역 (지도 좌표, [왼, 위, 오른, 아래]) */
+                const line = (m: (typeof mountains)[number], spot: (typeof SPOTS)[number]): [number, number, number, number] => {
+                  const w = m.half * 2;
+                  const left = spot.anchor === "middle" ? spot.x - m.half : spot.anchor === "start" ? spot.x : spot.x - w;
+                  return [m.x + left * sc, m.y + (spot.y - 11) * sc, m.x + (left + w) * sc, m.y + (spot.y + 3) * sc];
+                };
+                const hits = (r: [number, number, number, number], self: number) =>
+                  taken.some((t, i) => i !== self && r[0] < t[2] && r[2] > t[0] && r[1] < t[3] && r[3] > t[1]);
+                // 위쪽 산부터 이름을 놓고, 빈자리가 없으면 이름은 숨김 (확대하면 나타남)
+                return mountains
+                  .map((m, i) => ({ m, i }))
+                  .sort((a, b) => a.m.y - b.m.y)
+                  .map(({ m, i }) => {
+                    const spot = SPOTS.find((sp) => !hits(line(m, sp), i)) ?? null;
+                    if (spot) taken.push(line(m, spot));
+                    return { m, spot };
+                  });
+              })().map(({ m, spot }) => (
+                <g key={`mt-${m.id}`} transform={`translate(${m.x},${m.y})`} pointerEvents="none">
+                  <g className="map-cs" transform={`scale(${cs(k)})`}>
+                    <motion.g
+                      initial={{ scale: 0.4, opacity: 0, y: 6 }}
+                      animate={{ scale: 1, opacity: 1, y: 0 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
+                    >
+                      <title>{`${[m.zh, m.trad].filter(Boolean).join(" · ")} ${m.ko}${m.note ? `\n${m.note}` : ""}`}</title>
+                      {/* 뒤 봉우리 · 앞 봉우리 · 눈 덮인 꼭대기 (밑변이 실제 위치) */}
+                      <path d="M2 0 L11 -13 L20 0 Z" style={{ fill: "var(--map-mountain-back)", stroke: "var(--map-land)", strokeWidth: 1.2, strokeLinejoin: "round" }} />
+                      <path d="M-16 0 L-2 -21 L12 0 Z" style={{ fill: "var(--map-mountain)", stroke: "var(--map-land)", strokeWidth: 1.4, strokeLinejoin: "round" }} />
+                      <path d="M-6.7 -14 L-2 -21 L2.7 -14 L0.5 -15.5 L-2 -13.5 L-4.3 -15.5 Z" style={{ fill: "var(--map-mountain-cap)" }} />
+                      {spot && (
+                        <text
+                          textAnchor={spot.anchor}
+                          x={spot.x}
+                          y={spot.y}
+                          className="font-zh"
+                          style={{ fill: "var(--map-mountain)", fontSize: 11, fontWeight: 700, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
+                        >
+                          {m.name}
+                          <tspan style={{ fontSize: 9.5, fontWeight: 500 }}> {m.ko}</tspan>
+                        </text>
+                      )}
+                    </motion.g>
+                  </g>
+                </g>
+              ))}
 
               {/* 세부 산지 핀 */}
               {pins.map((p) => (
