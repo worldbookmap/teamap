@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronLeft, ChevronRight, CupSoda, Loader2, LogIn, LogOut, Map as MapIcon, Moon, Plus, Search, Sparkles, Star, Sun, Users } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CLUB, ClubFollowButton } from "@/components/club";
 import { formatDate, Landing, markUpdatesSeen, useUnseenUpdates } from "@/components/landing";
@@ -85,6 +85,23 @@ export function TeaMapApp() {
   /** 세미나용 오늘의 차 (고른 순서, 이 브라우저에 저장) */
   const { ids: todayIds, setIds: setTodayIds, shown: todayShown, setShown: setTodayShown } = useTodayTeas();
   const [todayPicker, setTodayPicker] = useState(false);
+  /** 전체 화면에서 맨 위 오늘의 차 띠가 왼쪽 위 지역 경로와 겹치지 않도록, 경로가 끝나는 자리 (px) */
+  const crumbsRef = useRef<HTMLElement>(null);
+  const [crumbsRight, setCrumbsRight] = useState(0);
+  useEffect(() => {
+    const el = crumbsRef.current;
+    if (!el || !presenting) return;
+    const measure = () => {
+      const box = el.parentElement?.getBoundingClientRect();
+      const last = el.querySelector("ol")?.getBoundingClientRect();
+      if (box && last) setCrumbsRight(Math.round(last.right - box.left));
+    };
+    const ro = new ResizeObserver(measure);
+    for (const c of el.children) ro.observe(c);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [presenting]);
 
   // 마신 기록
   const [tastings, setTastings] = useState<Tasting[]>([]);
@@ -519,16 +536,19 @@ export function TeaMapApp() {
             }
           />
 
-          {/* 오늘의 차 (왼쪽 아래 다류 안내, 오른쪽 아래 확대 버튼을 비켜서) */}
+          {/* 오늘의 차: 전체 화면에서는 맨 위 가운데 (멀리서도 먼저 보이게), 평소에는 아래 (왼쪽 다류 안내·오른쪽 확대 버튼을 비켜서) */}
           <div
             className={cn(
-              "pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center pr-14 pl-3",
-              presenting ? "sm:pl-[18rem]" : "sm:pl-44",
+              "pointer-events-none absolute inset-x-0 z-10 flex justify-center pr-14 pl-3",
+              presenting ? "top-3" : "bottom-3 sm:pl-44",
             )}
+            // 경로가 길어지면 띠가 그만큼 오른쪽으로 비켜 섬 (남은 자리의 가운데)
+            style={presenting && crumbsRight ? { paddingLeft: crumbsRight + 12 } : undefined}
           >
             <TodayTeaBar
               teas={todayShown ? todayTeas : []}
               large={presenting}
+              fromTop={presenting}
               onOpen={(id) => {
                 setDetailTab("info");
                 setDetailId(id);
@@ -555,7 +575,7 @@ export function TeaMapApp() {
             />
           </div>
 
-          <nav className="absolute top-3 right-14 left-3 flex items-center gap-1 lg:right-auto">
+          <nav ref={crumbsRef} className="absolute top-3 right-14 left-3 flex items-center gap-1 lg:right-auto">
             <AnimatePresence>
               {regionCode !== CHINA && (
                 <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}>

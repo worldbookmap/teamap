@@ -189,6 +189,7 @@ export function TodayTeaPicker({
 export function TodayTeaBar({
   teas,
   large,
+  fromTop,
   onOpen,
   onHover,
   onEdit,
@@ -196,6 +197,8 @@ export function TodayTeaBar({
 }: {
   teas: Tea[];
   large?: boolean;
+  /** 화면 위쪽에 놓일 때 (위에서 내려오며 나타남) */
+  fromTop?: boolean;
   onOpen: (id: string) => void;
   onHover: (id: string | null) => void;
   onEdit: () => void;
@@ -205,9 +208,9 @@ export function TodayTeaBar({
     <AnimatePresence>
       {teas.length > 0 && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: fromTop ? -10 : 10 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
+          exit={{ opacity: 0, y: fromTop ? -10 : 10 }}
           className={cn(
             "pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-today/40 bg-card/90 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.25)] backdrop-blur-md",
             large ? "gap-2.5 px-4 py-3" : "px-2.5 py-2",
