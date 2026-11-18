@@ -57,6 +57,13 @@ export interface TastingPanel {
   labelOf?: (t: Tasting) => string | null;
 }
 
+/** 세부 정보가 열릴 때 제목 → 탭 순서로 차례차례 떠오르게 */
+const STAGGER = { hidden: {}, show: { transition: { staggerChildren: 0.07, delayChildren: 0.12 } } };
+const RISE = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as const } },
+};
+
 export function TeaDetailDialog({
   tea,
   onOpenChange,
@@ -84,7 +91,8 @@ export function TeaDetailDialog({
 }) {
   return (
     <Dialog open={!!tea} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] gap-0 overflow-y-auto p-0 sm:max-w-2xl">
+      {/* 열릴 때 아래에서 살짝 떠오르고, 닫힐 때는 빠르게 가라앉음 */}
+      <DialogContent className="max-h-[92dvh] gap-0 overflow-y-auto p-0 ease-[cubic-bezier(0.32,0.72,0,1)] data-open:duration-[420ms] data-open:slide-in-from-bottom-6 data-open:zoom-in-[0.97] data-closed:duration-150 data-closed:slide-out-to-bottom-3 data-closed:zoom-out-[0.98] motion-reduce:data-open:slide-in-from-bottom-0 motion-reduce:data-closed:slide-out-to-bottom-0 sm:max-w-2xl">
         {tea && (
           <TeaDetail
             key={tea.id}
@@ -142,6 +150,13 @@ function TeaDetail({
   return (
     <div>
       <div className="relative aspect-[16/10] w-full overflow-hidden rounded-t-xl bg-muted">
+        {/* 처음 열릴 때 사진이 살짝 확대된 채로 들어와 제자리로 */}
+        <motion.div
+          className="absolute inset-0"
+          initial={{ scale: 1.08, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+        >
         {images.length ? (
           <AnimatePresence initial={false} custom={dir}>
             <motion.img
@@ -162,6 +177,7 @@ function TeaDetail({
         ) : (
           <TeaSeal tea={tea} className="absolute inset-0 text-4xl" />
         )}
+        </motion.div>
         {images.length > 1 && (
           <>
             <Button
@@ -199,8 +215,8 @@ function TeaDetail({
         )}
       </div>
 
-      <div className="space-y-5 p-6">
-        <div className="space-y-2">
+      <motion.div className="space-y-5 p-6" initial="hidden" animate="show" variants={STAGGER}>
+        <motion.div className="space-y-2" variants={RISE}>
           {product.parent && (
             <button
               onClick={() => product.onOpen(product.parent!.id)}
@@ -230,9 +246,15 @@ function TeaDetail({
           <DialogDescription className="font-heading text-lg text-foreground">
             {tea.name_ko !== tea.name_zh ? tea.name_ko : null}
           </DialogDescription>
-        </div>
+        </motion.div>
 
-        <Tabs value={tasting.tab} onValueChange={(v) => tasting.onTabChange(v as DetailTab)}>
+        <motion.div variants={RISE}>
+        {/* 탭을 바꾸면 내용이 살짝 떠오르며 나타남 */}
+        <Tabs
+          value={tasting.tab}
+          onValueChange={(v) => tasting.onTabChange(v as DetailTab)}
+          className="[&_[data-slot=tabs-content]]:animate-in [&_[data-slot=tabs-content]]:fade-in-0 [&_[data-slot=tabs-content]]:slide-in-from-bottom-2 [&_[data-slot=tabs-content]]:duration-300 [&_[data-slot=tabs-content]]:ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:[&_[data-slot=tabs-content]]:animate-none"
+        >
           <TabsList className="w-full">
             <TabsTrigger value="info">차 정보</TabsTrigger>
             <TabsTrigger value="thetea">
@@ -479,7 +501,8 @@ function TeaDetail({
             )}
           </TabsContent>
         </Tabs>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 }
