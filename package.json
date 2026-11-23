@@ -12,6 +12,7 @@
     "hanja:build": "node scripts/build-hanja.mjs",
     "seed:supabase": "tsx --env-file-if-exists=.env.local scripts/seed-supabase.mts",
     "migrate:supabase": "tsx --env-file-if-exists=.env.local scripts/migrate-local-to-supabase.mts",
+    "images:fill": "tsx --env-file-if-exists=.env.local --tsconfig tsconfig.json scripts/fill-tea-images.mts",
     "typecheck": "tsc --noEmit",
     "towns:build": "node scripts/build-towns.mjs",
     "towns:points": "node scripts/build-town-points.mjs"
