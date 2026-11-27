@@ -15,6 +15,7 @@ import { loadTowns, townPos, type TownFocus } from "@/lib/towns";
 import type { HanjaConverter } from "@/lib/hanja";
 import { CHINA } from "@/lib/regions";
 import { LANDMARKS } from "@/data/landmarks";
+import { RIVER_LINES, RIVERS } from "@/data/rivers";
 import { dominantCategory, teasInRegion } from "@/lib/tea-utils";
 import type { Tea } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -326,6 +327,33 @@ export function ChinaMap({
       return [{ ...m, name, half, x: pt[0], y: pt[1], box: { left: -half, right: Math.max(20, half), top: -38, bottom: 16 } }];
     });
   }, [projection, view]);
+
+  /** 차와 이어진 강: 물길과, 지금 지도 안에 들어오는 물길 가운데쯤에 놓을 이름 자리 */
+  const rivers = useMemo(() => {
+    if (!path || !projection || view === CHINA) return [];
+    const shown = RIVERS.filter((r) => r.views.some((v) => view.startsWith(v)));
+    if (!shown.length) return [];
+    const [[x0, y0], [x1, y1]] = path.bounds({ type: "FeatureCollection", features });
+    return shown.map((r) => {
+      const lines = RIVER_LINES[r.id];
+      const d = path({ type: "MultiLineString", coordinates: lines }) ?? "";
+      // 지금 지도의 구역 안에 드는 물길 점들 중 가운데
+      const inside = lines.flat().flatMap((ll) => {
+        const pt = projection(ll);
+        if (!pt || pt[0] < x0 || pt[0] > x1 || pt[1] < y0 || pt[1] > y1) return [];
+        return features.some((f) => geoContains(f, ll)) ? [pt] : [];
+      });
+      const at = inside[Math.floor(inside.length / 2)] ?? null;
+      const name = r.zh;
+      const half = (name.length * 10.5 + 4 + r.ko.length * 9) / 2;
+      return {
+        ...r,
+        name,
+        d,
+        label: at ? { x: at[0], y: at[1], box: { left: -half, right: half, top: -17, bottom: 2 } } : null,
+      };
+    });
+  }, [path, projection, view, features]);
 
   /** 현재 보고 있는 구역 자체(하위 구역 미지정)로 등록된 차 */
   const selfTeas = useMemo(
@@ -663,7 +691,7 @@ export function ChinaMap({
     const s = cs(k);
     const hw = Math.max(label.length * 11.5, labelKo.length * 9.5) / 2 + 2;
     let dy = has ? 24 : 0;
-    for (const p of [...pins, ...mountains]) {
+    for (const p of [...pins, ...mountains, ...rivers.flatMap((r) => (r.label ? [r.label] : []))]) {
       const top = y + (dy - 11) * s;
       const bottom = y + (dy + 16) * s;
       const pTop = p.y + p.box.top * s;
@@ -822,6 +850,24 @@ export function ChinaMap({
                       />
                     ) : null,
                   )}
+                </g>
+              )}
+
+              {/* 차와 이어진 강의 물길 (지명·표식 아래) */}
+              {rivers.length > 0 && (
+                <g pointerEvents="none">
+                  {rivers.map((r) => (
+                    <motion.path
+                      key={`rv-${r.id}`}
+                      d={r.d}
+                      fill="none"
+                      vectorEffect="non-scaling-stroke"
+                      style={{ stroke: "var(--map-lake)", strokeWidth: r.major ? 2.6 : 1.8, strokeLinecap: "round", strokeLinejoin: "round", opacity: 0.9 }}
+                      initial={{ pathLength: 0 }}
+                      animate={{ pathLength: 1 }}
+                      transition={{ duration: 1.2, ease: "easeOut", delay: 0.15 }}
+                    />
+                  ))}
                 </g>
               )}
 
@@ -1063,6 +1109,29 @@ export function ChinaMap({
                   </g>
                 </g>
               ))}
+
+              {/* 강 이름 (물길 위, 지도 안에 드는 물길의 가운데쯤) */}
+              {rivers.map((r) =>
+                r.label ? (
+                  <g key={`rvl-${r.id}`} transform={`translate(${r.label.x},${r.label.y})`} pointerEvents="none">
+                    <g className="map-cs" transform={`scale(${cs(k)})`}>
+                      <motion.text
+                        textAnchor="middle"
+                        y={-5}
+                        className="font-zh"
+                        style={{ fill: "var(--map-lake-label)", fontSize: 10.5, fontWeight: 700, letterSpacing: 1, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.4, delay: 0.6 }}
+                      >
+                        <title>{`${[r.zh, r.trad].filter(Boolean).join(" · ")} ${r.ko}${r.note ? `\n${r.note}` : ""}`}</title>
+                        {r.name}
+                        <tspan style={{ fontSize: 9, fontWeight: 500, letterSpacing: 0 }}> {r.ko}</tspan>
+                      </motion.text>
+                    </g>
+                  </g>
+                ) : null,
+              )}
 
               {/* 세부 산지 핀 */}
               {pins.map((p) => (
