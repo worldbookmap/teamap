@@ -43,13 +43,41 @@ import { cn } from "@/lib/utils";
 type Me = Awaited<ReturnType<typeof api.me>>;
 /** 맨 위 탭: 차 지도 · 티끌 모임 */
 type View = "map" | "club";
-/** 브라우저 방문 기록에 남기는 화면 상태 */
+/** 브라우저 방문 기록·주소에 남기는 화면 상태 */
 interface NavState {
   view: View;
   viewCode: string;
   focusCode: string | null;
   detailId: string | null;
   gatheringId: string | null;
+}
+
+/**
+ * 화면 상태를 주소로: 링크를 공유하면 같은 화면이 열림.
+ * 예) /?region=530000&area=530802&tea=…  ·  /?gathering=…#club (모임 탭)
+ */
+function navUrl(n: NavState) {
+  const q = new URLSearchParams();
+  if (n.viewCode !== CHINA) q.set("region", n.viewCode);
+  if (n.focusCode) q.set("area", n.focusCode);
+  if (n.detailId) q.set("tea", n.detailId);
+  if (n.gatheringId) q.set("gathering", n.gatheringId);
+  const qs = q.toString();
+  return `${window.location.pathname}${qs ? `?${qs}` : ""}${n.view === "club" ? "#club" : ""}`;
+}
+function navFromUrl(loc: Location): NavState {
+  const q = new URLSearchParams(loc.search);
+  const code = (k: string) => {
+    const v = q.get(k);
+    return v && /^\d{6}(_\w+)?$/.test(v) ? v : null;
+  };
+  return {
+    view: loc.hash === "#club" ? "club" : "map",
+    viewCode: code("region") ?? CHINA,
+    focusCode: code("area"),
+    detailId: q.get("tea") || null,
+    gatheringId: q.get("gathering") || null,
+  };
 }
 
 /** 모바일에서 차 목록을 한 번에 보여 줄 개수 */
@@ -191,15 +219,13 @@ export function TeaMapApp() {
   const navStack = useRef<{ keys: string[]; idx: number } | null>(null);
   useEffect(() => {
     const key = JSON.stringify(nav);
-    const url = (n: NavState) => (n.view === "club" ? "#club" : window.location.pathname + window.location.search);
     const st = navStack.current;
     if (!st) {
-      // 처음: 새로고침이면 보던 화면을 되살리고, 아니면 #club 만 읽음 (SSR 과 맞추려고 첫 렌더 뒤에)
-      const saved = (window.history.state as { teamap?: NavState } | null)?.teamap;
-      const start: NavState = saved ?? { ...nav, view: window.location.hash === "#club" ? "club" : nav.view };
+      // 처음: 주소에 담긴 화면을 엶 (공유받은 링크·새로고침). SSR 과 맞추려고 첫 렌더 뒤에 읽음
+      const start = navFromUrl(window.location);
       navStack.current = { keys: [JSON.stringify(start)], idx: 0 };
-      window.history.replaceState({ ...window.history.state, teamap: start }, "", url(start));
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 첫 렌더 뒤 주소·기록에서 한 번 읽음 (SSR 과 맞추기 위해)
+      window.history.replaceState({ ...window.history.state, teamap: start }, "", navUrl(start));
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 첫 렌더 뒤 주소에서 한 번 읽음 (SSR 과 맞추기 위해)
       if (JSON.stringify(start) !== key) applyNav(start);
       return;
     }
@@ -212,13 +238,14 @@ export function TeaMapApp() {
     }
     st.keys = [...st.keys.slice(0, st.idx + 1), key];
     st.idx += 1;
-    window.history.pushState({ teamap: nav }, "", url(nav));
+    window.history.pushState({ teamap: nav }, "", navUrl(nav));
   }, [nav, applyNav]);
   useEffect(() => {
     const onPop = (e: PopStateEvent) => {
-      const n = (e.state as { teamap?: NavState } | null)?.teamap;
+      // 주소를 직접 고쳐 #club 등으로 옮긴 기록에는 상태가 없으니 주소에서 읽음
+      const n = (e.state as { teamap?: NavState } | null)?.teamap ?? navFromUrl(window.location);
       const st = navStack.current;
-      if (!n || !st) return;
+      if (!st) return;
       const key = JSON.stringify(n);
       // 앞뒤로 움직인 자리를 찾아 맞춤 (없으면 새로고침 전 기록: 그 자리부터 다시 쌓음)
       const near = [st.idx, st.idx - 1, st.idx + 1].find((i) => st.keys[i] === key);
@@ -337,6 +364,13 @@ export function TeaMapApp() {
       ),
     [topTeas, cats, drunkOnly, summaries, matchesFamily],
   );
+  // 주소에 없는 지역 번호가 들어오면(잘못된 링크) 전체 지도로
+  if (regions && viewCode !== CHINA && !regions[viewCode]) {
+    setViewCode(CHINA);
+    setFocusCode(null);
+  } else if (regions && focusCode && !regions[focusCode]) {
+    setFocusCode(null);
+  }
   const regionCode = focusCode ?? viewCode;
   /** 목록 순서: 다류 순으로 묶고, 다류 안에서는 최근에 고친 차(제품 수정 포함)가 먼저 */
   const sortTeas = useCallback(
