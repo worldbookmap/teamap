@@ -1015,7 +1015,9 @@ export function ChinaMap({
                     const spot = SPOTS.find((sp) => !hits(line(m, sp), i)) ?? null;
                     if (spot) taken.push(line(m, spot));
                     return { m, spot };
-                  });
+                  })
+                  // 호수는 산 위에 그림 (서호처럼 차산에 둘러싸이면 넓은 지도에서 산에 가려지므로)
+                  .sort((a, b) => Number(a.m.kind === "lake") - Number(b.m.kind === "lake"));
               })().map(({ m, spot }) => (
                 <g key={`mt-${m.id}`} transform={`translate(${m.x},${m.y})`} pointerEvents="none">
                   <g className="map-cs" transform={`scale(${cs(k)})`}>
