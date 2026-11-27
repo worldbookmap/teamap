@@ -5,7 +5,7 @@ import { ArrowUp, Check, Loader2, MapPin, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { CountyPinMap } from "@/components/map/county-pin-map";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, useUnsavedChanges } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { HanjaConverter } from "@/lib/hanja";
@@ -76,6 +76,9 @@ function DetailForm({
     init?.lng != null && init?.lat != null ? { lng: init.lng, lat: init.lat } : null,
   );
   const [picking, setPicking] = useState(false);
+  // 고친 내용이 있으면 창 바깥을 눌러도 바로 닫지 않고 물어봄
+  const [initial] = useState(() => JSON.stringify({ zh, ko, town, pos }));
+  useUnsavedChanges(JSON.stringify({ zh, ko, town, pos }) !== initial);
   const [towns, setTowns] = useState<Town[] | null>(null);
 
   useEffect(() => {

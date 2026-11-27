@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { ImageField } from "@/components/tea/image-field";
 import { TeaThumb } from "@/components/tea/tea-visual";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, useUnsavedChanges } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,6 +95,9 @@ function GatheringForm({
     const { kind, held_on, time, title, place, photos, teas, note } = gathering;
     return { kind, held_on, time, title, place, photos, teas, note };
   });
+  // 고친 내용이 있으면 창 바깥을 눌러도 바로 닫지 않고 물어봄
+  const [initial] = useState(form);
+  useUnsavedChanges(JSON.stringify(form) !== JSON.stringify(initial));
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof GatheringInput>(k: K, v: GatheringInput[K]) => setForm((f) => ({ ...f, [k]: v }));
   const placeList = useId();

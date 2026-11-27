@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "cn"
-import { Dialog as DialogPrimitive } from "radix-ui"
+import { AlertDialog as AlertDialogPrimitive, Dialog as DialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
@@ -47,14 +47,46 @@ function DialogOverlay({
   )
 }
 
+/** 창 안의 입력 양식이 고쳐졌는지 알리는 통로 (useUnsavedChanges) */
+const UnsavedContext = React.createContext<((dirty: boolean) => void) | null>(null)
+
+/**
+ * 입력 양식에서 부름: 고친 내용이 있으면(dirty) 창 바깥을 누르거나 Esc·✕ 로 닫을 때
+ * "저장하지 않고 닫을까요?" 를 먼저 물어봄. 브라우저 탭을 닫거나 새로고침할 때도 경고.
+ */
+function useUnsavedChanges(dirty: boolean) {
+  const setDirty = React.useContext(UnsavedContext)
+  React.useEffect(() => {
+    setDirty?.(dirty)
+    return () => setDirty?.(false)
+  }, [setDirty, dirty])
+  React.useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [dirty])
+}
+
 function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onInteractOutside,
+  onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const [dirty, setDirty] = React.useState(false)
+  const [asking, setAsking] = React.useState(false)
+  const closeRef = React.useRef<HTMLButtonElement>(null)
+  /** 고친 내용이 있으면 닫지 않고 물어봄 */
+  const guard = (e: { preventDefault: () => void; defaultPrevented: boolean }) => {
+    if (!dirty || e.defaultPrevented) return
+    e.preventDefault()
+    setAsking(true)
+  }
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -64,15 +96,55 @@ function DialogContent({
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] grid-cols-[minmax(0,1fr)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
+        onInteractOutside={(e) => {
+          onInteractOutside?.(e)
+          guard(e)
+        }}
+        onEscapeKeyDown={(e) => {
+          onEscapeKeyDown?.(e)
+          guard(e)
+        }}
         {...props}
       >
-        {children}
+        <UnsavedContext.Provider value={setDirty}>{children}</UnsavedContext.Provider>
+        {/* 「닫기」를 고르면 이 버튼을 대신 눌러 창을 닫음 */}
+        <DialogPrimitive.Close ref={closeRef} hidden tabIndex={-1} />
+        <AlertDialogPrimitive.Root open={asking} onOpenChange={setAsking}>
+          <AlertDialogPrimitive.Portal>
+            <AlertDialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/20 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
+            <AlertDialogPrimitive.Content className="fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-3 rounded-xl bg-popover p-5 text-sm text-popover-foreground shadow-xl ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-xs data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95">
+              <AlertDialogPrimitive.Title className="font-heading text-base font-medium">
+                저장하지 않고 닫을까요?
+              </AlertDialogPrimitive.Title>
+              <AlertDialogPrimitive.Description className="text-muted-foreground">
+                지금 닫으면 입력한 내용이 사라져요.
+              </AlertDialogPrimitive.Description>
+              <div className="mt-2 flex justify-end gap-2">
+                <AlertDialogPrimitive.Cancel asChild>
+                  <Button variant="outline">계속 쓰기</Button>
+                </AlertDialogPrimitive.Cancel>
+                <AlertDialogPrimitive.Action asChild>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setDirty(false)
+                      closeRef.current?.click()
+                    }}
+                  >
+                    닫기
+                  </Button>
+                </AlertDialogPrimitive.Action>
+              </div>
+            </AlertDialogPrimitive.Content>
+          </AlertDialogPrimitive.Portal>
+        </AlertDialogPrimitive.Root>
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
               variant="ghost"
               className="absolute top-2 right-2"
               size="icon-sm"
+              onClick={guard}
             >
               <XIcon
               />
@@ -165,4 +237,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  useUnsavedChanges,
 }

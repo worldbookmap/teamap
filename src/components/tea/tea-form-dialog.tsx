@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, useUnsavedChanges } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,6 +113,9 @@ function TeaForm({
   onSaved: (tea: Tea) => void;
 }) {
   const [form, setForm] = useState<TeaInput>(() => (tea ? { ...tea } : empty(initialOrigins, parent)));
+  // 고친 내용이 있으면 창 바깥을 눌러도 바로 닫지 않고 물어봄
+  const [initial] = useState(form);
+  useUnsavedChanges(JSON.stringify(form) !== JSON.stringify(initial));
   const isProduct = !!(parent || tea?.parent_id);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof TeaInput>(k: K, v: TeaInput[K]) => setForm((f) => ({ ...f, [k]: v }));

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ImageField } from "@/components/tea/image-field";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, useUnsavedChanges } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -79,6 +79,9 @@ function TastingForm({
   onSaved: (t: Tasting) => void;
 }) {
   const [form, setForm] = useState<TastingInput>(() => (tasting ? { ...tasting } : empty(tea.id)));
+  // 고친 내용이 있으면 창 바깥을 눌러도 바로 닫지 않고 물어봄
+  const [initial] = useState(form);
+  useUnsavedChanges(JSON.stringify(form) !== JSON.stringify(initial));
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof TastingInput>(k: K, v: TastingInput[K]) => setForm((f) => ({ ...f, [k]: v }));
 
