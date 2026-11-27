@@ -521,6 +521,9 @@ export function TeaMapApp() {
             onCountClick={presenting ? (code) => setCountList({ code }) : undefined}
             onSelfTeasClick={(code) => setCountList({ code, self: true })}
             todayTeas={todayShown ? todayTeas : undefined}
+            nameOf={(code) =>
+              code === CHINA ? { zh: "全部", ko: "전체" } : regions?.[code] ? { zh: regions[code].n, ko: conv?.toHangul(regions[code].n) ?? "" } : null
+            }
             extraControls={
               <Button
                 size="icon-sm"

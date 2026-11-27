@@ -1,10 +1,10 @@
 "use client";
 
-import { geoBounds, geoCentroid, geoConicEqualArea, geoContains, geoPath, type GeoPermissibleObjects } from "d3-geo";
+import { geoBounds, geoCentroid, geoConicEqualArea, geoContains, geoPath, type GeoPath, type GeoPermissibleObjects } from "d3-geo";
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior, type ZoomTransform } from "d3-zoom";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, type Variants } from "framer-motion";
 import { Loader2, Maximize, Minimize, Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,8 @@ interface Props {
   todayTeas?: Tea[];
   /** 확대·축소 버튼 묶음 위에 덧붙일 버튼 (전체 화면에서도 보임) */
   extraControls?: React.ReactNode;
+  /** 지역 이름 (옮겨 간 지역을 화면 가운데에 크게 띄웠다가 지움) */
+  nameOf?: (code: string) => { zh: string; ko: string } | null;
 }
 
 /** 지도에 맞출 범위에서 뺄 구역 (남해 제도, 대만의 连江·金门 까지 맞추면 본섬이 너무 작아집니다) */
@@ -90,6 +92,92 @@ const csScale = (k: number) => (k < 1 ? 1 / k : k ** -0.7);
 /** 선택한 구역 밖의 글자·표식을 흐리게 할 때 쓰는 클래스 */
 const fade = (dim: boolean) => cn("transition-opacity duration-200", dim && "opacity-20");
 
+type Box = [[number, number], [number, number]];
+interface Geo {
+  view: string;
+  path: GeoPath;
+  features: RegionFeature[];
+  width: number;
+  height: number;
+}
+/** 지도 svg 전체에 줄 이동·배율 (원점은 왼쪽 위) */
+type Pose = {
+  x: number;
+  y: number;
+  scale: number;
+  opacity: number;
+};
+interface Flight {
+  enter: Pose;
+  exit: Pose;
+  /** 들어가기(in)·나오기(out)·옆으로(across) */
+  dir: "in" | "out" | "across";
+}
+
+/** code 가 a 의 하위 구역(또는 a 자체)인지: 행정구역 번호 앞자리로 판단 (성 xx0000 ⊃ 시 xxyy00 ⊃ 현 xxyyzz) */
+function within(code: string, a: string) {
+  if (a.includes("_") || code.includes("_")) return false;
+  if (a === code || a === CHINA) return true;
+  if (a.endsWith("0000")) return code.slice(0, 2) === a.slice(0, 2);
+  if (a.endsWith("00")) return code.slice(0, 4) === a.slice(0, 4);
+  return false;
+}
+
+/** 화면의 box 가 화면을 가득 채우도록 하는 자세 */
+function fill([[x0, y0], [x1, y1]]: Box, w: number, h: number, opacity: number): Pose {
+  const scale = Math.min(12, 0.9 * Math.min(w / Math.max(1, x1 - x0), h / Math.max(1, y1 - y0)));
+  return { x: w / 2 - scale * ((x0 + x1) / 2), y: h / 2 - scale * ((y0 + y1) / 2), scale, opacity };
+}
+/** 화면 전체가 box 안으로 줄어드는 자세 (fill 의 반대) */
+function shrinkInto(box: Box, w: number, h: number, opacity: number): Pose {
+  const f = fill(box, w, h, opacity);
+  return { x: -f.x / f.scale, y: -f.y / f.scale, scale: 1 / f.scale, opacity };
+}
+/** 가운데를 기준으로 배율만 바꾼 자세 */
+const centered = (scale: number, w: number, h: number, opacity: number): Pose => ({
+  x: (w / 2) * (1 - scale),
+  y: (h / 2) * (1 - scale),
+  scale,
+  opacity,
+});
+
+function planFlight(prev: Geo, zt: ZoomTransform, next: Geo): Flight {
+  const { width: w, height: h } = next;
+  // 들어가기: 앞 지도에서 새 지역(또는 그 지역을 품은 구역)으로 확대해 들어감
+  const into = within(next.view, prev.view) && prev.features.find((f) => within(next.view, f.properties.adcode));
+  if (into) {
+    const [[x0, y0], [x1, y1]] = prev.path.bounds(into);
+    const box: Box = [zt.apply([x0, y0]), zt.apply([x1, y1])];
+    return { dir: "in", exit: fill(box, w, h, 0), enter: centered(0.82, w, h, 0) };
+  }
+  // 나오기: 새 지도에서 앞 지역 자리를 가득 채운 채 시작해 물러남
+  const from = within(prev.view, next.view) && next.features.find((f) => within(prev.view, f.properties.adcode));
+  if (from) {
+    const box = next.path.bounds(from) as Box;
+    return { dir: "out", enter: fill(box, w, h, 0), exit: shrinkInto(box, w, h, 0) };
+  }
+  // 옆 지역으로: 물러났다가 다시 다가감
+  return { dir: "across", exit: centered(0.6, w, h, 0), enter: centered(1.5, w, h, 0) };
+}
+
+const REST: Pose = { x: 0, y: 0, scale: 1, opacity: 1 };
+const FLY_EASE = [0.65, 0, 0.35, 1] as const;
+const mapVariants: Variants = {
+  enter: (f: Flight | null) => f?.enter ?? { ...REST, opacity: 0, scale: 0.96 },
+  rest: (f: Flight | null) => ({
+    ...REST,
+    transition: f
+      ? { duration: 0.75, ease: FLY_EASE, opacity: { duration: 0.45, delay: f.dir === "in" ? 0.25 : 0.05 } }
+      : { duration: 0.35, ease: [0.22, 1, 0.36, 1] as const },
+  }),
+  exit: (f: Flight | null) => ({
+    ...(f?.exit ?? { ...REST, opacity: 0, scale: 1.04 }),
+    transition: f
+      ? { duration: 0.75, ease: FLY_EASE, opacity: { duration: 0.4, delay: f.dir === "in" ? 0.3 : 0.2 } }
+      : { duration: 0.35 },
+  }),
+};
+
 export function ChinaMap({
   viewCode,
   focusCode,
@@ -109,6 +197,7 @@ export function ChinaMap({
   onSelfTeasClick,
   todayTeas = NO_TEAS,
   extraControls,
+  nameOf,
 }: Props) {
   const [containerRef, { width, height }] = useSize<HTMLDivElement>();
   const [shapes, setShapes] = useState<{ code: string; features: RegionFeature[] } | null>(null);
@@ -118,10 +207,15 @@ export function ChinaMap({
   const tipRef = useRef<HTMLDivElement>(null);
   // 확대·이동 중에는 React 로 다시 그리지 않고 <g> 의 transform 과 --k 만 바꿉니다. k 상태는 끝났을 때만 갱신
   const transformRef = useRef<ZoomTransform>(zoomIdentity);
-  const zoomGRef = useRef<SVGGElement>(null);
-  const [k, setK] = useState(1);
+  // 확대 상태는 끝났을 때만 갱신 (지역을 옮길 때 앞 지도가 어디를 보고 있었는지도 여기서 앎)
+  const [zt, setZt] = useState<ZoomTransform>(zoomIdentity);
+  const k = zt.k;
   const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  // 지역을 옮기는 동안 앞·뒤 지도가 함께 있으므로, 사라지는 앞 지도가 null 로 지우지 않게 새 svg 만 받음
+  const bindSvg = useCallback((el: SVGSVGElement | null) => {
+    if (el) setSvgEl(el);
+  }, []);
   // 전체 화면에서는 화면 높이에 맞춰 글자·표식을 키움 (1080p → 약 1.7배, 4K → 약 3.5배)
   const labelScale = presenting ? Math.min(3.6, Math.max(1.4, height / 620)) : 1;
   const labelScaleRef = useRef(labelScale);
@@ -166,18 +260,20 @@ export function ChinaMap({
   }, [viewCode]);
 
   const features = useMemo(() => shapes?.features ?? NO_FEATURES, [shapes]);
+  /** 지금 그려진 지도의 구역. 새 지역을 불러오는 동안에는 앞 지도를 그대로 두었다가, 다 불러오면 날아가듯 넘어감 */
+  const view = shapes?.code ?? viewCode;
   const error = failed === viewCode ? "지도 데이터를 불러오지 못했습니다." : null;
-  const ready = shapes?.code === viewCode && width > 0;
+  const ready = !!shapes && width > 0;
 
   const projection = useMemo(() => {
     if (!features.length || !width) return null;
     const fitTarget: GeoPermissibleObjects =
-      viewCode === CHINA
+      view === CHINA
         ? mainland(features)
         : { type: "FeatureCollection", features: features.filter((f) => !FIT_EXCLUDE.has(f.properties.adcode)) };
     const [lon, lat] = geoCentroid(fitTarget);
     // 전국 지도는 여백을 줄여 꽉 차게
-    const pad = viewCode === CHINA ? Math.min(width, height) * 0.02 + 6 : Math.min(width, height) * 0.06 + 12;
+    const pad = view === CHINA ? Math.min(width, height) * 0.02 + 6 : Math.min(width, height) * 0.06 + 12;
     return geoConicEqualArea()
       .rotate([-lon, 0])
       .parallels([lat - 6, lat + 6])
@@ -188,7 +284,7 @@ export function ChinaMap({
         ],
         fitTarget,
       );
-  }, [features, width, height, viewCode]);
+  }, [features, width, height, view]);
 
   const path = useMemo(() => (projection ? geoPath(projection) : null), [projection]);
 
@@ -201,8 +297,8 @@ export function ChinaMap({
   }, []);
   const landPath = useMemo(() => (path && land ? (path(land) ?? "") : ""), [path, land]);
   const aroundPaths = useMemo(
-    () => (path && around.view === viewCode ? around.features.map((f) => ({ code: f.properties.adcode, d: path(f) ?? "" })) : []),
-    [path, around, viewCode],
+    () => (path && around.view === view ? around.features.map((f) => ({ code: f.properties.adcode, d: path(f) ?? "" })) : []),
+    [path, around, view],
   );
 
   // 구역별 차 통계
@@ -219,8 +315,8 @@ export function ChinaMap({
 
   /** 이름난 차산 (지금 보는 지역 안에 있는 것만) */
   const mountains = useMemo(() => {
-    if (!projection || viewCode === CHINA) return [];
-    return LANDMARKS.filter((m) => m.path.includes(viewCode)).flatMap((m) => {
+    if (!projection || view === CHINA) return [];
+    return LANDMARKS.filter((m) => m.path.includes(view)).flatMap((m) => {
       const pt = projection([m.lng, m.lat]);
       if (!pt) return [];
       // 대만은 번체, 나머지는 간체 (다른 지명과 맞춤)
@@ -229,22 +325,22 @@ export function ChinaMap({
       const half = Math.max(16, (name.length * 11 + 4 + m.ko.length * 9.5) / 2);
       return [{ ...m, name, half, x: pt[0], y: pt[1], box: { left: -half, right: Math.max(20, half), top: -38, bottom: 16 } }];
     });
-  }, [projection, viewCode]);
+  }, [projection, view]);
 
   /** 현재 보고 있는 구역 자체(하위 구역 미지정)로 등록된 차 */
   const selfTeas = useMemo(
-    () => (viewCode === CHINA ? [] : teas.filter((t) => t.origins.some((o) => o.adcode === viewCode))),
-    [teas, viewCode],
+    () => (view === CHINA ? [] : teas.filter((t) => t.origins.some((o) => o.adcode === view))),
+    [teas, view],
   );
 
   /** 세부 산지 위치 핀 (전국 지도에서는 너무 빽빽해 생략, 성을 눌러 들어가면 표시) */
   const pins = useMemo(() => {
-    if (!projection || viewCode === CHINA) return [];
+    if (!projection || view === CHINA) return [];
     const m = new Map<string, { x: number; y: number; zh: string; ko: string; teas: Tea[]; codes: Set<string>; towns: Set<string> }>();
     for (const t of teas) {
       for (const o of t.origins) {
         const d = o.detail;
-        if (!d || d.lng == null || d.lat == null || !o.path.includes(viewCode)) continue;
+        if (!d || d.lng == null || d.lat == null || !o.path.includes(view)) continue;
         const key = `${d.lng},${d.lat}`;
         const pt = projection([d.lng, d.lat]);
         if (!pt) continue;
@@ -257,7 +353,7 @@ export function ChinaMap({
     }
     // 이름은 시(지구)를 눌러 한 단계 더 들어갔을 때부터 (성 지도에서는 핀만).
     // 직할시처럼 성에서 바로 구가 나오는 곳은 처음부터
-    const named = !/0000$/.test(viewCode) || features[0]?.properties.level === "district";
+    const named = !/0000$/.test(view) || features[0]?.properties.level === "district";
     return [...m.values()].map((p) => {
       if (!named) return { ...p, lines: [], box: { left: -8, right: 8, top: -22, bottom: 0 } };
       // 장소 이름이 있으면 맨 위 줄에
@@ -277,7 +373,7 @@ export function ChinaMap({
       const w = Math.max(...lines.map((l) => l.label.length * 10.5 + (l.ko ? 4 + l.ko.length * 9.5 : 0) + (l.sites > 1 ? 28 : 0)));
       return { ...p, lines, box: { left: -8, right: 9 + w, top: -22, bottom: -9 + (lines.length - 1) * 14 + 4 } };
     });
-  }, [teas, projection, viewCode, features]);
+  }, [teas, projection, view, features]);
 
   // 현·구가 보이는 지도에서는 향·진 위치를 점으로 (OpenStreetMap 기준, 일부만 위치가 있음)
   const [towns, setTowns] = useState<{ view: string; list: (TownFocus & { x: number; y: number })[] }>({
@@ -299,14 +395,14 @@ export function ChinaMap({
           const pt = pos && projection([pos.lng, pos.lat]);
           return pt ? [{ code: t[0], county, zh: t[1], ko: conv?.toHangul(t[1]) ?? "", ...pos, x: pt[0], y: pt[1] }] : [];
         });
-        setTowns({ view: viewCode, list });
+        setTowns({ view: view, list });
       })
       .catch(() => {});
     return () => {
       alive = false;
     };
-  }, [features, projection, viewCode, conv]);
-  const townDots = towns.view === viewCode ? towns.list : [];
+  }, [features, projection, view, conv]);
+  const townDots = towns.view === view ? towns.list : [];
   const focusTownPt =
     focusTown && focusTown.lng != null && focusTown.lat != null && projection ? projection([focusTown.lng, focusTown.lat]) : null;
 
@@ -333,7 +429,7 @@ export function ChinaMap({
       const seen = new Map<string, { x: number; y: number }>();
       for (const o of t.origins) {
         const d = o.detail;
-        if (viewCode !== CHINA && d?.lng != null && d.lat != null && o.path.includes(viewCode)) {
+        if (view !== CHINA && d?.lng != null && d.lat != null && o.path.includes(view)) {
           const pt = projection([d.lng, d.lat]);
           if (pt) {
             seen.set(`p${d.lng},${d.lat}`, { x: pt[0], y: pt[1] });
@@ -345,7 +441,7 @@ export function ChinaMap({
       }
       return seen;
     };
-  }, [projection, viewCode, shapesData]);
+  }, [projection, view, shapesData]);
   const teaSites = useMemo(() => {
     const out = new Map<string, { tea: Tea; pts: { x: number; y: number }[] }>();
     if (!siteFinder) return out;
@@ -422,18 +518,53 @@ export function ChinaMap({
     return best;
   }, [selfTeas, path, projection, shapesData]);
 
+  // 지역을 옮길 때 날아가듯: 들어갈 때는 누른 구역으로 확대해 들어가고, 나올 때는 그 구역에서 물러나며 넓은 지도가 펼쳐짐
+  const geo = useMemo<Geo | null>(
+    () => (path && width ? { view, path, features, width, height } : null),
+    [view, path, features, width, height],
+  );
+  const [stage, setStage] = useState<{ geo: Geo | null; zt: ZoomTransform; flight: Flight | null }>({
+    geo: null,
+    zt: zoomIdentity,
+    flight: null,
+  });
+  if (geo !== stage.geo) {
+    const prev = stage.geo;
+    const flight = !prev || !geo || prev.view === geo.view ? stage.flight : planFlight(prev, stage.zt, geo);
+    setStage({ geo, zt, flight });
+  } else if (zt !== stage.zt) {
+    setStage({ ...stage, zt });
+  }
+  const flight = stage.flight;
+
+  // 다른 지역으로 옮기거나 구역을 고르면 그 이름을 크게 띄움 (고른 구역을 풀 때는 띄우지 않음)
+  const [seen, setSeen] = useState({ view: viewCode, focus: focusCode });
+  const [banner, setBanner] = useState<{ id: number; zh: string; ko: string } | null>(null);
+  if (seen.view !== viewCode || seen.focus !== focusCode) {
+    const code = viewCode !== seen.view ? (focusCode ?? viewCode) : focusCode;
+    setSeen({ view: viewCode, focus: focusCode });
+    const name = code ? nameOf?.(code) : null;
+    if (name?.zh) setBanner({ id: (banner?.id ?? 0) + 1, ...name });
+  }
+  useEffect(() => {
+    if (!banner) return;
+    const t = window.setTimeout(() => setBanner(null), 1900);
+    return () => window.clearTimeout(t);
+  }, [banner]);
+
   // 확대/이동
+  // 지역을 옮길 때는 앞 지도가 사라지는 동안 새 지도가 함께 그려지므로, svg 가 바뀔 때만 다시 붙임 (앞 지도는 그대로 둠)
   useEffect(() => {
     if (!svgEl) return;
     const z = d3zoom<SVGSVGElement, unknown>()
       // 세부 지도에서는 주변 지역이 보이도록 처음보다 더 축소할 수 있게
-      .scaleExtent([viewCode === CHINA ? 1 : 0.2, 14])
+      .scaleExtent([svgEl.dataset.view === CHINA ? 1 : 0.2, 14])
       .on("start", () => {
         svgEl.dataset.zooming = "1";
       })
       .on("zoom", (e) => {
         transformRef.current = e.transform;
-        const g = zoomGRef.current;
+        const g = svgEl.querySelector<SVGGElement>(":scope > .map-zoom");
         if (g) {
           g.setAttribute("transform", e.transform.toString());
           // 글자·표식은 반대로 축소해 조금만 커지게 (CSS 변수는 하위 전체 스타일을 다시 계산하게 해서 느림)
@@ -443,7 +574,7 @@ export function ChinaMap({
       })
       .on("end", (e) => {
         delete svgEl.dataset.zooming;
-        setK(e.transform.k);
+        setZt(e.transform);
       });
     zoomRef.current = z;
     const sel = select(svgEl);
@@ -452,7 +583,7 @@ export function ChinaMap({
     return () => {
       sel.on(".zoom", null);
     };
-  }, [svgEl, viewCode]);
+  }, [svgEl]);
 
   useEffect(() => {
     if (resetKey && svgEl && zoomRef.current) {
@@ -472,7 +603,7 @@ export function ChinaMap({
 
   // 작은 현·구를 선택하면 그 구역으로 확대
   useEffect(() => {
-    if (!svgEl || !zoomRef.current || !path || !focusCode || focusCode === viewCode) return;
+    if (!svgEl || svgEl.dataset.view !== view || !zoomRef.current || !path || !focusCode || focusCode === view) return;
     const f = features.find((x) => x.properties.adcode === focusCode);
     if (!f) return;
     const [[x0, y0], [x1, y1]] = path.bounds(f);
@@ -483,7 +614,7 @@ export function ChinaMap({
       .scale(k)
       .translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
     select(svgEl).transition().duration(600).call(zoomRef.current.transform, t);
-  }, [focusCode, svgEl, path, features, width, height, viewCode]);
+  }, [focusCode, svgEl, path, features, width, height, view]);
 
   // 길게 누르기: 누른 채 거의 움직이지 않으면 LONG_PRESS_MS 뒤에 실행 (끌면 지도 이동으로 취소)
   const [pressing, setPressing] = useState<{ x: number; y: number } | null>(null);
@@ -571,18 +702,21 @@ export function ChinaMap({
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-map-sea">
-      <AnimatePresence mode="wait">
+      <AnimatePresence custom={flight}>
         {ready && path && (
           <motion.svg
-            key={viewCode}
-            ref={setSvgEl}
+            key={view}
+            data-view={view}
+            ref={bindSvg}
             width={width}
             height={height}
             className="absolute inset-0 touch-none select-none"
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.04 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            style={{ originX: 0, originY: 0 }}
+            custom={flight}
+            variants={mapVariants}
+            initial="enter"
+            animate="rest"
+            exit="exit"
             onPointerLeave={() => {
               setHover(null);
               cancelPress();
@@ -597,7 +731,7 @@ export function ChinaMap({
               </filter>
             </defs>
             {/* transform 은 확대 핸들러가 직접 씁니다 (React 가 덮어쓰지 않도록 prop 으로 주지 않음) */}
-            <g ref={zoomGRef}>
+            <g className="map-zoom">
               {landPath && (
                 <path d={landPath} pointerEvents="none" vectorEffect="non-scaling-stroke" style={{ fill: "var(--map-world)", stroke: "var(--map-world-stroke)", strokeWidth: 0.6 }} />
               )}
@@ -699,7 +833,7 @@ export function ChinaMap({
                 {links.map(({ tea, d }) => {
                   const on = highlightTeaId === tea.id;
                   // 전국 지도에서는 선이 너무 많아질 수 있어 고른 차만
-                  if (viewCode === CHINA && !on) return null;
+                  if (view === CHINA && !on) return null;
                   return (
                     <path
                       key={`link-${tea.id}`}
@@ -768,7 +902,7 @@ export function ChinaMap({
               {/* 지금 보는 구역 자체로 등록된 차 (하위 구역 표식에는 잡히지 않음) */}
               {selfMarkerPos && (
                 <motion.g
-                  key={`self-${viewCode}`}
+                  key={`self-${view}`}
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ type: "spring", stiffness: 380, damping: 22, delay: 0.15 }}
@@ -781,7 +915,7 @@ export function ChinaMap({
                       className={onSelfTeasClick ? "cursor-pointer" : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelfTeasClick?.(viewCode);
+                        onSelfTeasClick?.(view);
                       }}
                     >
                       <title>{`이 지역 전역으로 등록된 차 ${selfTeas.length}종`}</title>
@@ -1071,6 +1205,10 @@ export function ChinaMap({
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {banner && <RegionBanner key={banner.id} zh={banner.zh} ko={banner.ko} big={presenting} />}
+      </AnimatePresence>
+
       {(!ready || !path) && !error && (
         <div className="absolute inset-0 grid place-items-center text-muted-foreground" role="status">
           <div className="flex flex-col items-center gap-2 text-sm">
@@ -1149,7 +1287,7 @@ export function ChinaMap({
         <button
           type="button"
           disabled={!onSelfTeasClick}
-          onClick={() => onSelfTeasClick?.(viewCode)}
+          onClick={() => onSelfTeasClick?.(view)}
           className={cn(
             "absolute top-14 left-3 cursor-pointer rounded-full border bg-card/90 px-3 py-1 shadow-sm backdrop-blur hover:bg-muted",
             presenting ? "text-base" : "text-xs",
@@ -1183,5 +1321,65 @@ export function ChinaMap({
         )}
       </div>
     </div>
+  );
+}
+
+/** 옮겨 간 지역 이름: 한자가 한 글자씩 먹이 번지듯 떠오르고, 붉은 선이 그어진 뒤 한글이 따라 나옴 */
+function RegionBanner({ zh, ko, big }: { zh: string; ko: string; big?: boolean }) {
+  const chars = [...zh];
+  const ease = [0.22, 1, 0.36, 1] as const;
+  return (
+    <motion.div
+      aria-live="polite"
+      className="pointer-events-none absolute inset-0 z-20 grid place-items-center"
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0, y: -14, filter: "blur(8px)", transition: { duration: 0.5, ease: [0.4, 0, 1, 1] } }}
+    >
+      {/* 글자 뒤 은은한 안개 (지도 위에서도 읽히게) */}
+      <motion.div
+        className="absolute h-[60%] w-[min(90%,52rem)] rounded-[50%] bg-map-sea/70 blur-3xl"
+        initial={{ opacity: 0, scale: 0.7 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6, ease }}
+      />
+      <div className="relative flex flex-col items-center px-4 text-center">
+        <div
+          className={cn(
+            "flex font-zh leading-none font-bold text-foreground",
+            big ? "text-[clamp(4rem,11vh,9rem)]" : "text-[clamp(2.75rem,9vw,5.5rem)]",
+          )}
+          style={{ letterSpacing: "0.12em", marginRight: "-0.12em", textShadow: "0 2px 24px var(--map-sea), 0 0 2px var(--map-sea)" }}
+        >
+          {chars.map((c, i) => (
+            <motion.span
+              key={i}
+              initial={{ opacity: 0, y: 18, scale: 1.25, filter: "blur(14px)" }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+              transition={{ duration: 0.7, delay: 0.15 + i * 0.07, ease }}
+            >
+              {c}
+            </motion.span>
+          ))}
+        </div>
+        <motion.div
+          className={cn("bg-seal", big ? "mt-6 h-1" : "mt-4 h-0.5")}
+          style={{ width: "min(14rem, 60%)", originX: 0.5 }}
+          initial={{ scaleX: 0, opacity: 0 }}
+          animate={{ scaleX: 1, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.3 + chars.length * 0.07, ease }}
+        />
+        {ko && (
+          <motion.div
+            className={cn("font-serif font-medium text-foreground/80", big ? "mt-5 text-4xl" : "mt-3 text-xl sm:text-2xl")}
+            style={{ textShadow: "0 1px 12px var(--map-sea)" }}
+            initial={{ opacity: 0, y: 8, letterSpacing: "0.6em" }}
+            animate={{ opacity: 1, y: 0, letterSpacing: "0.32em" }}
+            transition={{ duration: 0.8, delay: 0.4 + chars.length * 0.07, ease }}
+          >
+            {ko}
+          </motion.div>
+        )}
+      </div>
+    </motion.div>
   );
 }

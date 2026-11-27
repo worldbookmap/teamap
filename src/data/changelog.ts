@@ -9,6 +9,12 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-11-27",
+    items: [
+      "지도에서 지역을 눌러 들어가면 그 지역으로 확 다가가듯 확대되며 넘어가고, 위 단계로 나오면 멀어지듯 넓은 지도가 펼쳐져요. 옮겨 간 지역 이름은 한자와 한글로 화면 가운데에 크게 떴다가 사라져요.",
+    ],
+  },
+  {
     date: "2026-11-23",
     items: [
       "대표 사진이 없던 차 35종에 찻잎 사진이 생겼어요. 연결된 백과사전(thetea.app) 글의 찻잎 사진을 가져왔어요.",
