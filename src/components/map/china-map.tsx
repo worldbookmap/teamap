@@ -862,10 +862,11 @@ export function ChinaMap({
                       d={r.d}
                       fill="none"
                       vectorEffect="non-scaling-stroke"
-                      style={{ stroke: "var(--map-lake)", strokeWidth: r.major ? 2.6 : 1.8, strokeLinecap: "round", strokeLinejoin: "round", opacity: 0.9 }}
-                      initial={{ pathLength: 0 }}
-                      animate={{ pathLength: 1 }}
-                      transition={{ duration: 1.2, ease: "easeOut", delay: 0.15 }}
+                      style={{ stroke: "var(--map-lake)", strokeWidth: r.major ? 2.6 : 1.8, strokeLinecap: "round", strokeLinejoin: "round" }}
+                      // pathLength 로 그려 나가기는 non-scaling-stroke 와 어긋나 확대한 지도에서 물길이 끊겨 보여 흐려졌다 나타나기만
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 0.9 }}
+                      transition={{ duration: 0.6, ease: "easeOut", delay: 0.15 }}
                     />
                   ))}
                 </g>
