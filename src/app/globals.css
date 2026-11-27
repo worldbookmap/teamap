@@ -103,6 +103,10 @@
   --map-mountain: oklch(0.45 0.07 150);
   --map-mountain-back: oklch(0.62 0.06 150);
   --map-mountain-cap: oklch(0.98 0.01 150);
+  /* 이름난 호수 */
+  --map-lake: oklch(0.74 0.075 215);
+  --map-lake-wave: oklch(0.97 0.02 215);
+  --map-lake-label: oklch(0.45 0.08 225);
   /* 차가 있는 구역의 다류별 바탕색 */
   --tint-green: #e3ebcf;
   --tint-white: #f1ebdc;
@@ -158,6 +162,9 @@
   --map-mountain: oklch(0.78 0.08 150);
   --map-mountain-back: oklch(0.6 0.06 150);
   --map-mountain-cap: oklch(0.97 0.01 150);
+  --map-lake: oklch(0.52 0.08 225);
+  --map-lake-wave: oklch(0.86 0.04 215);
+  --map-lake-label: oklch(0.8 0.08 215);
   --tint-green: color-mix(in oklch, #6f8f3a 40%, oklch(0.27 0.02 60));
   --tint-white: color-mix(in oklch, #b5a27a 40%, oklch(0.27 0.02 60));
   --tint-yellow: color-mix(in oklch, #c69a1e 40%, oklch(0.27 0.02 60));

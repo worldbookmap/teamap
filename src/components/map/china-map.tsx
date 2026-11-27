@@ -989,7 +989,9 @@ export function ChinaMap({
                 // 가까운 산끼리 (예: 사자봉·오운산) 이름이 겹치면 뒤의 산 이름은 아래로
                 const sc = cs(k);
                 /** 이미 자리 잡은 이름 줄과 산 모양 (지도 좌표, [왼, 위, 오른, 아래]) */
-                const taken: [number, number, number, number][] = mountains.map((p) => [p.x - 17 * sc, p.y - 22 * sc, p.x + 21 * sc, p.y]);
+                const taken: [number, number, number, number][] = mountains.map((p) =>
+                  p.kind === "lake" ? [p.x - 17 * sc, p.y - 15 * sc, p.x + 17 * sc, p.y + 3 * sc] : [p.x - 17 * sc, p.y - 22 * sc, p.x + 21 * sc, p.y],
+                );
                 /** 이름을 놓아 볼 자리: 꼭대기 위 → 밑변 아래 → 오른쪽 → 왼쪽 (x·y 는 글자 기준점, 화면 px) */
                 const SPOTS = [
                   { x: 0, y: -26, anchor: "middle" },
@@ -1023,17 +1025,33 @@ export function ChinaMap({
                       transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.2 }}
                     >
                       <title>{`${[m.zh, m.trad].filter(Boolean).join(" · ")} ${m.ko}${m.note ? `\n${m.note}` : ""}`}</title>
-                      {/* 뒤 봉우리 · 앞 봉우리 · 눈 덮인 꼭대기 (밑변이 실제 위치) */}
-                      <path d="M2 0 L11 -13 L20 0 Z" style={{ fill: "var(--map-mountain-back)", stroke: "var(--map-land)", strokeWidth: 1.2, strokeLinejoin: "round" }} />
-                      <path d="M-16 0 L-2 -21 L12 0 Z" style={{ fill: "var(--map-mountain)", stroke: "var(--map-land)", strokeWidth: 1.4, strokeLinejoin: "round" }} />
-                      <path d="M-6.7 -14 L-2 -21 L2.7 -14 L0.5 -15.5 L-2 -13.5 L-4.3 -15.5 Z" style={{ fill: "var(--map-mountain-cap)" }} />
+                      {m.kind === "lake" ? (
+                        <>
+                          {/* 물결 두 줄이 있는 호수 (가운데쯤이 실제 위치) */}
+                          <path
+                            d="M-15 -6 C -15 -12 -7 -14 -1 -12.5 C 5 -11 9 -14 13 -11.5 C 17 -9 16 -2 11 0.5 C 6 3 -1 1.5 -6 2 C -11 2.5 -15 0 -15 -6 Z"
+                            style={{ fill: "var(--map-lake)", stroke: "var(--map-land)", strokeWidth: 1.4, strokeLinejoin: "round" }}
+                          />
+                          <path
+                            d="M-9 -7 q2 -2 4 0 t4 0 M-1 -2.5 q2 -2 4 0 t4 0"
+                            style={{ fill: "none", stroke: "var(--map-lake-wave)", strokeWidth: 1.3, strokeLinecap: "round" }}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          {/* 뒤 봉우리 · 앞 봉우리 · 눈 덮인 꼭대기 (밑변이 실제 위치) */}
+                          <path d="M2 0 L11 -13 L20 0 Z" style={{ fill: "var(--map-mountain-back)", stroke: "var(--map-land)", strokeWidth: 1.2, strokeLinejoin: "round" }} />
+                          <path d="M-16 0 L-2 -21 L12 0 Z" style={{ fill: "var(--map-mountain)", stroke: "var(--map-land)", strokeWidth: 1.4, strokeLinejoin: "round" }} />
+                          <path d="M-6.7 -14 L-2 -21 L2.7 -14 L0.5 -15.5 L-2 -13.5 L-4.3 -15.5 Z" style={{ fill: "var(--map-mountain-cap)" }} />
+                        </>
+                      )}
                       {spot && (
                         <text
                           textAnchor={spot.anchor}
                           x={spot.x}
                           y={spot.y}
                           className="font-zh"
-                          style={{ fill: "var(--map-mountain)", fontSize: 11, fontWeight: 700, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
+                          style={{ fill: m.kind === "lake" ? "var(--map-lake-label)" : "var(--map-mountain)", fontSize: 11, fontWeight: 700, paintOrder: "stroke", stroke: "var(--map-land)", strokeWidth: 3 }}
                         >
                           {m.name}
                           <tspan style={{ fontSize: 9.5, fontWeight: 500 }}> {m.ko}</tspan>
