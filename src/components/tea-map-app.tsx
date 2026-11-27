@@ -43,6 +43,14 @@ import { cn } from "@/lib/utils";
 type Me = Awaited<ReturnType<typeof api.me>>;
 /** 맨 위 탭: 차 지도 · 티끌 모임 */
 type View = "map" | "club";
+/** 브라우저 방문 기록에 남기는 화면 상태 */
+interface NavState {
+  view: View;
+  viewCode: string;
+  focusCode: string | null;
+  detailId: string | null;
+  gatheringId: string | null;
+}
 
 /** 모바일에서 차 목록을 한 번에 보여 줄 개수 */
 const MOBILE_PAGE = 5;
@@ -158,16 +166,72 @@ export function TeaMapApp() {
     refreshMe();
   }, [refreshMe]);
 
-  // 주소 끝 #club 으로 모임 탭을 바로 열고, 탭을 바꾸면 주소도 맞춤 (공유용)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- 첫 렌더 뒤 주소에서 한 번 읽음 (SSR 과 맞추기 위해)
-    if (window.location.hash === "#club") setView("club");
-  }, []);
   const changeView = useCallback((v: View) => {
     setView(v);
-    window.history.replaceState(null, "", v === "club" ? "#club" : window.location.pathname + window.location.search);
     window.scrollTo({ top: 0 });
   }, []);
+
+  // 브라우저 뒤로·앞으로: 탭·지역·고른 구역·열어 본 차·모임을 방문 기록에 쌓아, 뒤로 가면 앞서 보던 화면으로.
+  // 주소 끝 #club 은 모임 탭 (공유용)
+  const nav = useMemo<NavState>(
+    () => ({ view, viewCode, focusCode, detailId, gatheringId }),
+    [view, viewCode, focusCode, detailId, gatheringId],
+  );
+  /** 기록에 남은 화면으로 되돌림 */
+  const applyNav = useCallback((n: NavState) => {
+    setView(n.view);
+    setViewCode(n.viewCode);
+    setFocusCode(n.focusCode);
+    setDetailId(n.detailId);
+    setGatheringId(n.gatheringId);
+    setFocusTown(null);
+    setShownTeaId(null);
+  }, []);
+  /** 이 페이지에서 쌓은 기록 (키) 과 지금 위치. 바로 앞 기록으로 돌아가는 변화면 새로 쌓지 않고 뒤로 감 */
+  const navStack = useRef<{ keys: string[]; idx: number } | null>(null);
+  useEffect(() => {
+    const key = JSON.stringify(nav);
+    const url = (n: NavState) => (n.view === "club" ? "#club" : window.location.pathname + window.location.search);
+    const st = navStack.current;
+    if (!st) {
+      // 처음: 새로고침이면 보던 화면을 되살리고, 아니면 #club 만 읽음 (SSR 과 맞추려고 첫 렌더 뒤에)
+      const saved = (window.history.state as { teamap?: NavState } | null)?.teamap;
+      const start: NavState = saved ?? { ...nav, view: window.location.hash === "#club" ? "club" : nav.view };
+      navStack.current = { keys: [JSON.stringify(start)], idx: 0 };
+      window.history.replaceState({ ...window.history.state, teamap: start }, "", url(start));
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 첫 렌더 뒤 주소·기록에서 한 번 읽음 (SSR 과 맞추기 위해)
+      if (JSON.stringify(start) !== key) applyNav(start);
+      return;
+    }
+    if (key === st.keys[st.idx]) return;
+    if (st.idx > 0 && key === st.keys[st.idx - 1]) {
+      // 창을 닫거나 위 단계로 돌아가는 것처럼 바로 앞 화면으로 돌아가면, 기록도 한 칸 뒤로
+      st.idx -= 1;
+      window.history.back();
+      return;
+    }
+    st.keys = [...st.keys.slice(0, st.idx + 1), key];
+    st.idx += 1;
+    window.history.pushState({ teamap: nav }, "", url(nav));
+  }, [nav, applyNav]);
+  useEffect(() => {
+    const onPop = (e: PopStateEvent) => {
+      const n = (e.state as { teamap?: NavState } | null)?.teamap;
+      const st = navStack.current;
+      if (!n || !st) return;
+      const key = JSON.stringify(n);
+      // 앞뒤로 움직인 자리를 찾아 맞춤 (없으면 새로고침 전 기록: 그 자리부터 다시 쌓음)
+      const near = [st.idx, st.idx - 1, st.idx + 1].find((i) => st.keys[i] === key);
+      if (near != null) st.idx = near;
+      else {
+        st.keys = [key];
+        st.idx = 0;
+      }
+      applyNav(n);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [applyNav]);
   const ordinals = useMemo(() => regularOrdinals(gatherings), [gatherings]);
   const places = useMemo(() => [...new Set(gatherings.map((g) => g.place).filter(Boolean))], [gatherings]);
   const openGathering = gatherings.find((g) => g.id === gatheringId) ?? null;
